@@ -1,0 +1,61 @@
+# Testing
+
+## Current State: No Automated Tests, But Real Manual Verification Done Twice
+Neither `client/` nor `server/` has a test runner configured. That gap is still real (see [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md)). What's changed since the initial scaffold: the app has now been run end-to-end live, against a real local MongoDB instance, on two separate occasions — **2026-08-14** (initial verification of the Core MVP) and **2026-08-16** (verification of the self-service deposit feature, added specifically to close the funding gap found on the 14th). This section records exactly what was verified and how, so nothing here is a guess.
+
+## Environment This Was Verified In
+- MongoDB: local Windows service (`MongoDB Server`), already installed, reachable at `127.0.0.1:27017`. Confirmed still running and holding all prior test data across the multi-day gap between the two sessions.
+- Backend: `http://localhost:5050` both sessions (not 5000 — an unrelated process already had 5000 on this machine; see `server/.env`, which is gitignored and machine-specific. `.env.example` still documents 5000 as the conventional default).
+- Frontend: `http://localhost:5175` on 2026-08-14, `http://localhost:5178` on 2026-08-16 (Vite auto-increments past whatever's already taken on this machine — ports 5173-5177 were all occupied the second time). `server/.env`'s `CLIENT_URL` was updated to match each time, or CORS rejects the frontend's requests.
+- **Operational gotcha found 2026-08-16**: after the multi-day gap, port 5050 was still occupied — not by something else, but by an orphaned `node.exe` left over from the 2026-08-14 session (nodemon's child process survives independently of its supervisor on Windows; killing the supervisor doesn't kill the child). Identified via `Get-NetTCPConnection`/`Get-Process` (matching start timestamp confirmed it was the old process) and terminated before restarting. Worth checking for first if a future session hits an unexpected `EADDRINUSE`.
+
+## What Was Verified — API Level (curl against the running server)
+| Flow | Result | Session |
+|---|---|---|
+| Register (2+ customers) | 201, JWT returned, persisted in MongoDB | 08-14 |
+| Login | 200, JWT returned | 08-14 |
+| Open account (Savings + Current) | 201, unique account numbers generated, balance 0 | 08-14 |
+| Transfer with insufficient balance | **Correctly rejected**, 400, source account untouched | 08-14 |
+| Transfer with sufficient balance | 201, correct `balanceAfter` on the debit leg | 08-14 |
+| Idempotent transfer retry (same `clientRef`) | **Correctly returned the original transaction**, 200, no double-debit | 08-14 |
+| Credit leg | Destination balance and ledger entry correct, same `reference` as the debit leg | 08-14 |
+| `GET /transactions/mine` (both parties) | Correct ledger entries, correct `counterpartyAccount` population | 08-14 |
+| Role check: customer hits `/accounts/all` | Correctly rejected, 403 | 08-14 |
+| Ownership check: customer views another customer's account by id | Correctly rejected, 403 | 08-14 |
+| No token | Correctly rejected, 401 | 08-14 |
+| Admin report (`GET /admin/report`) | Correct aggregate counts/totals, matched hand-calculated values | 08-14 |
+| Role promotion via `PATCH /admin/users/:id/role` | Took effect immediately on next request, even with a pre-promotion JWT | 08-14 |
+| Suspend, then retry with the user's old token | Correctly rejected, 401, immediately | 08-14 |
+| **Deposit with positive amount** | **201, correct `balanceAfter`, single ledger entry with `type: 'deposit'`** | **08-16** |
+| **Idempotent deposit retry (same `clientRef`)** | **Correctly returned the original transaction**, 200, no double-deposit — balance confirmed unchanged on retry | **08-16** |
+| **Deposit with negative amount** | **Correctly rejected**, 400, `express-validator` message | **08-16** |
+
+## What Was Verified — Browser Level (real clicks against the real UI)
+All three roles were driven through the actual rendered app (not just the API):
+- **Register → Customer Dashboard**: form submission, redirect, empty-state message all correct. *(08-14)*
+- **Open account**: account card renders with correct balance/type/status/account number formatting. *(08-14)*
+- **Transfer, insufficient balance**: the exact `.error-text` message from the API rendered correctly in the form. *(08-14)*
+- **Transfer, successful**: balance updated in the account card, transaction history table auto-refreshed with the new row, form cleared — all without a page reload. *(08-14)*
+- **Cross-account transfer visible from both sides**: logged in as the recipient separately and confirmed the credited balance and ledger entry. *(08-14)*
+- **Employee Dashboard**: customer account list and cross-account transaction history rendered correctly with real multi-user data; account-number search filter narrowed results correctly. *(08-14)*
+- **Admin Dashboard**: stat cards showed correct live counts/totals; Suspend/Activate button toggled a real user's status and label instantly; role-change dropdown persisted a real role change. *(08-14)*
+- **Deposit, successful**: `.success-text` "Deposit successful" message rendered, account balance and dropdown both updated immediately, transaction history auto-refreshed. *(08-16)*
+- **Deposit transaction displays correctly in history**: showed as "Deposit" (not mislabeled as "Debit" — see the bug note below), and the type filter's new "Deposit" option correctly narrowed the table to just deposit rows. *(08-16)*
+- **Console check**: zero *application* JavaScript errors across both sessions. 2026-08-14 showed two harmless React Router v6 "future flag" warnings on initial load. 2026-08-16 showed three "Could not establish connection" errors, but these were Chrome-extension messaging noise from the tab reconnecting after the multi-day gap (all timestamped before the app even mounted) — not app bugs.
+
+## Real Bugs/Gaps Found By This Verification
+1. **~~No way for any account to receive its first unit of money~~** — found 2026-08-14, **resolved 2026-08-16** via self-service deposit. See [DECISIONS.md](DECISIONS.md) and [IMPLEMENTED_FEATURES.md](IMPLEMENTED_FEATURES.md). This was invisible until an actual end-to-end run was attempted — exactly the kind of thing "the code loads without errors" cannot catch.
+2. **`TransactionTable.jsx` mislabeled `deposit`-type transactions as "Debit"** — found and fixed within the same 2026-08-16 session that introduced the `deposit` type, before it ever reached a real user. The old logic (`tx.type === 'transfer-credit' ? 'Credit' : 'Debit'`) treated anything that wasn't specifically a transfer-credit as a debit. Caught by testing the new feature end-to-end rather than just confirming the API worked in isolation.
+
+## Test Data Left In The Database
+The local `banking-management` database now contains, cumulatively: `alice.test@example.com`, `bob.test@example.com`, `admin.test@example.com` (role: admin), `employee.test@example.com` (role: employee), `carol.browser@example.com` — all known test fixtures, not cleaned up since the plan is to keep using this same local database. **`dave@example.com` ("Dave Recruiter")** also appeared during the 2026-08-14 session without being created by that session's testing — still unexplained, still left untouched. See [DEV_CONTEXT.md](DEV_CONTEXT.md).
+
+## Still Not Verified
+- Concurrent/simultaneous transfers or deposits against the same account (atomicity is confirmed correct for *sequential* requests including retried duplicates, not load-tested for true concurrency).
+- Pagination beyond a single page (all test data so far fits on one page).
+- Account closure request/approval flow (still incomplete — see [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md)).
+- Mobile/responsive layout in an actual narrow viewport.
+- Anything under `client/dist` production build served for real (only `vite build`'s exit code has been checked, not the built output running).
+
+## Recommended Approach For Real Automated Tests (unchanged, still not set up)
+Jest + Supertest (with `mongodb-memory-server`) for the backend, Vitest + React Testing Library for the frontend, Playwright for e2e once deployed. Priority order for what to cover first is unchanged — transfer/deposit atomicity and idempotency, auth/suspension, validation guards, pagination/filtering — all of which now have two rounds of manual precedent to convert into real tests.
