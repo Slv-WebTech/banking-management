@@ -1,7 +1,41 @@
 # Testing
 
-## Current State: No Automated Tests, But Real Manual Verification Done Twice
-Neither `client/` nor `server/` has a test runner configured. That gap is still real (see [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md)). What's changed since the initial scaffold: the app has now been run end-to-end live, against a real local MongoDB instance, on two separate occasions — **2026-08-14** (initial verification of the Core MVP) and **2026-08-16** (verification of the self-service deposit feature, added specifically to close the funding gap found on the 14th). This section records exactly what was verified and how, so nothing here is a guess.
+## Current State: Automated Test Suite Exists (2026-08-17)
+`server/` has Jest + Supertest + `mongodb-memory-server` (32 tests, 4 files). `client/` has Vitest + React Testing Library (21 tests, 4 files). Both suites pass. Everything below the "Automated Tests" section is the manual-verification history that seeded what these tests cover — kept for the record, not because it's still the only evidence.
+
+## Automated Tests
+
+### Backend — `server/` (`npm test`)
+Jest + Supertest against the real Express `app` (imported from `server/app.js`, which has no side effects — see [ARCHITECTURE.md](ARCHITECTURE.md)), with `mongodb-memory-server` providing a fresh isolated MongoDB instance per test file (via `setupFilesAfterEnv`, see `server/tests/setup.js`). Rate limiters skip themselves under `NODE_ENV=test` (set by the `test` npm script) so fast test loops don't trip them. Run: `cd server && npm test`.
+
+| File | Covers |
+|---|---|
+| `tests/auth.test.js` | register (success, duplicate email, weak password), login (success, wrong password, unknown email), `/me` (no token, valid token), **suspended user rejected immediately even with a still-valid token** |
+| `tests/accounts.test.js` | open account (unique number, zero balance), `GET /accounts/mine` scoping, ownership check on `GET /accounts/:id`, role check on `GET /accounts/all`, closure request (rejected with balance, accepted at zero) |
+| `tests/transactions.test.js` | **deposit**: success, validation rejection, idempotent duplicate; **transfer**: insufficient-balance rejection (source untouched), successful transfer with matching ledger pair (shared `reference`, correct `balanceAfter` on both legs), idempotent duplicate, nonexistent-recipient rejection, same-account rejection, ownership check; **history**: pagination (`page`/`limit`/`pages` math), `type` filter |
+| `tests/admin.test.js` | non-admin blocked from admin routes, **role promotion takes effect on a pre-promotion token**, **suspension rejects a pre-suspension token immediately**, report accuracy against real seeded data, user search/role filters |
+
+`tests/helpers.js` provides `registerUser`, `openAccount`, `deposit`, and `createUserWithRole` (promotes a freshly-registered user via a direct DB write, mirroring `scripts/seedAdmin.js`, and deliberately returns the *original* pre-promotion token so tests exercise the live-DB-check behavior rather than working around it).
+
+### Frontend — `client/` (`npm test`)
+Vitest + React Testing Library + `@testing-library/user-event`, jsdom environment. `src/api/axios.js` is mocked (`vi.mock`) in every test that touches it — no real network calls. Run: `cd client && npm test`.
+
+| File | Covers |
+|---|---|
+| `src/context/AuthContext.test.jsx` | no-token startup (no API call made), session restore from `/me`, failed restore clears storage, `login()` persists token/user and updates state, `logout()` clears everything |
+| `src/components/ProtectedRoute.test.jsx` | loading state, redirect to `/login` when logged out, redirect to `/` on role mismatch, renders children on role match and on no-roles-required |
+| `src/components/TransactionTable.test.jsx` | empty state, **regression test for the type-label bug**: debit/credit/deposit all render their correct distinct label (would have failed under the old `tx.type === 'transfer-credit' ? 'Credit' : 'Debit'` logic), ₹ number formatting, conditional Account column, pagination button disabled-states and click behavior, filter `onChange` wiring |
+| `src/components/DepositForm.test.jsx` | account list rendering, submit disabled with no accounts, successful submit (correct payload shape, `clientRef` present, success message, form clears, callback fires), failed submit (server error message shown, form *not* cleared) |
+
+## Known Gaps In The Automated Suite (honest, not padded)
+- No tests for `TransferForm.jsx`, `Login.jsx`/`Register.jsx` pages, `CustomerDashboard.jsx`/`EmployeeDashboard.jsx`/`AdminDashboard.jsx` data-fetching orchestration, `AccountCard.jsx`, or `Navbar.jsx` — the highest-risk logic (money movement, auth, the type-label bug class) is covered; page-level composition and simpler presentational components are not yet.
+- No e2e tests (Playwright) — nothing exercises the real browser + real running servers together the way the manual sessions did. That manual coverage (see below) is not yet fully replaced.
+- No coverage reporting configured (no `--coverage` in either `test` script) — "32 backend / 21 frontend tests pass" is not the same claim as "X% of lines are covered." Don't conflate the two.
+- No CI — these tests only run when someone remembers to run them locally. See [PROJECT_PLAN.md](PROJECT_PLAN.md).
+- Backend suite takes ~70s (each of the 4 test files spins up its own `mongodb-memory-server` instance via `setupFilesAfterEnv`, run serially via `--runInBand`) — slow enough to be worth knowing about, not slow enough to have needed optimizing yet.
+
+## Manual Verification History (superseded as the *only* evidence, kept for the record)
+The app was also run end-to-end live, against a real local MongoDB instance, on two occasions before the automated suite existed — **2026-08-14** (initial verification of the Core MVP) and **2026-08-16** (verification of the self-service deposit feature, added specifically to close the funding gap found on the 14th). This section records exactly what was verified and how, so nothing here is a guess.
 
 ## Environment This Was Verified In
 - MongoDB: local Windows service (`MongoDB Server`), already installed, reachable at `127.0.0.1:27017`. Confirmed still running and holding all prior test data across the multi-day gap between the two sessions.
@@ -50,12 +84,14 @@ All three roles were driven through the actual rendered app (not just the API):
 ## Test Data Left In The Database
 The local `banking-management` database now contains, cumulatively: `alice.test@example.com`, `bob.test@example.com`, `admin.test@example.com` (role: admin), `employee.test@example.com` (role: employee), `carol.browser@example.com` — all known test fixtures, not cleaned up since the plan is to keep using this same local database. **`dave@example.com` ("Dave Recruiter")** also appeared during the 2026-08-14 session without being created by that session's testing — still unexplained, still left untouched. See [DEV_CONTEXT.md](DEV_CONTEXT.md).
 
-## Still Not Verified
-- Concurrent/simultaneous transfers or deposits against the same account (atomicity is confirmed correct for *sequential* requests including retried duplicates, not load-tested for true concurrency).
-- Pagination beyond a single page (all test data so far fits on one page).
+## Still Not Verified (by manual testing *or* the automated suite)
+- Concurrent/simultaneous transfers or deposits against the same account — atomicity is confirmed correct for *sequential* requests including retried duplicates (both manually and now by `transactions.test.js`), but nothing has load-tested true concurrent requests hitting the same account at once.
 - Account closure request/approval flow (still incomplete — see [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md)).
 - Mobile/responsive layout in an actual narrow viewport.
 - Anything under `client/dist` production build served for real (only `vite build`'s exit code has been checked, not the built output running).
+- `TransferForm.jsx`, the page components, and simpler presentational components — see "Known Gaps In The Automated Suite" above.
 
-## Recommended Approach For Real Automated Tests (unchanged, still not set up)
-Jest + Supertest (with `mongodb-memory-server`) for the backend, Vitest + React Testing Library for the frontend, Playwright for e2e once deployed. Priority order for what to cover first is unchanged — transfer/deposit atomicity and idempotency, auth/suspension, validation guards, pagination/filtering — all of which now have two rounds of manual precedent to convert into real tests.
+*(Pagination beyond a single page is no longer on this list — `transactions.test.js` now covers `page`/`limit`/`pages` math directly.)*
+
+## Recommended Next Steps
+In priority order: (1) coverage reporting so "tests pass" claims can be paired with an actual coverage number instead of just a test count; (2) fill the gaps listed above, especially `TransferForm.jsx` given how much weight its logic carries; (3) a CI pipeline to actually run this suite on every push, since right now it only runs when someone remembers to type `npm test`; (4) Playwright e2e once the app is deployed somewhere, to replace what the manual browser sessions used to verify.

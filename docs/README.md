@@ -20,7 +20,7 @@ This `/docs` directory is the durable knowledge base for this project — it sho
 | [PROJECT_SCORE.md](PROJECT_SCORE.md) | Honest quality scorecard across 14 categories |
 | [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md) | Known gaps and shortcuts, ranked by priority |
 | [DECISIONS.md](DECISIONS.md) | ADR-style log of why things were built the way they were |
-| [TESTING.md](TESTING.md) | What's been manually verified live (twice now) and what a real automated test suite should cover first |
+| [TESTING.md](TESTING.md) | The automated test suite (what it covers, how to run it), plus the manual-verification history that seeded it |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Planned deployment targets and what's needed to get there (not deployed yet) |
 | [CHANGELOG.md](CHANGELOG.md) | Dated history of what changed and why |
 | [INTERVIEW_GUIDE.md](INTERVIEW_GUIDE.md) | How to talk about this project in an interview — honestly scoped to what's actually been built/tested |

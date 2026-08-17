@@ -1,30 +1,31 @@
 # Project Score
 
-Assessment as of **2026-08-16 (post-deposit verification)**. History: 5.4/10 immediately after scaffold (pre-verification), 5.7/10 after the first live verification pass on 2026-08-14 (which found the funding gap). See [CHANGELOG.md](CHANGELOG.md) for those checkpoints. Scores are not inflated — several categories are still low because the corresponding work genuinely hasn't happened (deployment, automated tests). Re-score after each major milestone rather than adjusting old numbers in place.
+Assessment as of **2026-08-17 (post-test-suite)**. History: 5.4/10 immediately after scaffold (pre-verification), 5.7/10 after the first live verification pass on 2026-08-14 (found the funding gap), 5.9/10 after the deposit feature closed that gap on 2026-08-16. See [CHANGELOG.md](CHANGELOG.md) for those checkpoints. Scores are not inflated — several categories are still low because the corresponding work genuinely hasn't happened (deployment, CI, full test coverage). Re-score after each major milestone rather than adjusting old numbers in place.
 
 | Category | Score /10 | Change | Reasoning |
 |---|---|---|---|
-| Architecture | 7 | — | Unchanged — the deposit feature followed the existing transfer pattern exactly, no new architectural questions raised. |
+| Architecture | 8 | +1 | The `server.js` → `app.js`/`server.js` split (extracting the Express app from its listen/connect side effects) is a genuine, standard improvement — the app is now testable in isolation, not just runnable. |
 | Code quality | 7 | — | Unchanged. |
-| Maintainability | 7 | — | Unchanged — still undermined by zero automated tests, though two rounds of manual verification now exist as a reference for what to automate first. |
-| UI/UX | 5 | — | Unchanged — deposit form matches existing conventions exactly, still no toasts/confirmations. |
+| Maintainability | 8 | +1 | The reasoning that kept this capped ("undermined by zero automated tests") no longer applies — real regression protection now exists for the highest-risk logic. |
+| UI/UX | 5 | — | Unchanged. |
 | Accessibility | 4 | — | Unchanged — not specifically tested this pass. |
 | Performance | 6 | — | Unchanged. |
-| Security | 6 | — | Unchanged — role/ownership boundaries hold, same open gaps as before (no HTTPS in-repo, no 2FA, unpatched audit findings). |
-| Testing | 5 | +1 | Was 4. A second feature (deposit) went through the same live-verification discipline as the first, including deliberately testing the idempotency and validation-failure paths, not just the happy path. Still capped well below what real automated coverage would earn — zero regression protection exists. |
-| Documentation | 8 | — | Unchanged — kept accurate and current through both verification passes, which is the point. |
+| Security | 6 | — | Unchanged — same open gaps as before (no HTTPS in-repo, no 2FA, unpatched audit findings). |
+| Testing | 7 | +2 | Was 5. A real automated suite exists now — 32 backend tests (Jest/Supertest/`mongodb-memory-server`) and 21 frontend tests (Vitest/RTL), covering transfer/deposit atomicity and idempotency, auth/suspension/authorization boundaries, and a dedicated regression test for the type-label bug found on 2026-08-16. Not higher than 7, because real, documented gaps remain: no CI to actually run these automatically, no coverage reporting, `TransferForm.jsx` and the page components untested, no e2e. See [TESTING.md](TESTING.md). |
+| Documentation | 8 | — | Unchanged — kept accurate and current through every pass so far, which is the point. |
 | Scalability | 4 | — | Unchanged. |
-| Developer experience | 6 | — | Unchanged this pass (no new tooling added, though the orphaned-process gotcha documented in [DEV_CONTEXT.md](DEV_CONTEXT.md) will save a future session real time). |
-| Error handling | 7 | — | Unchanged — deposit's validation/ownership/inactive-account error paths all confirmed correct live, consistent with the existing standard. |
+| Developer experience | 7 | +1 | `npm test` now exists in both `client/` and `server/`, with a documented, standard pattern (per-file isolated in-memory MongoDB) that the next contributor can extend without re-deriving the approach. |
+| Error handling | 7 | — | Unchanged — the test suite confirmed existing error-handling behavior rather than revealing anything new about it. |
 | Responsive design | 6 | — | Unchanged. |
-| Feature completeness | 5 | +2 | Was 3. The funding gap that made even the Core MVP "not really usable by a new user" is closed. The Core MVP (auth, accounts, deposit, transfer, history, 3 dashboards) is now genuinely complete and usable end-to-end. Not higher than 5, because the full original brief (loans, statements, notifications, bonus features) is still ~unchanged in scope — this score reflects "the MVP works," not "the MVP is the whole brief." |
+| Feature completeness | 5 | — | Unchanged — testing verifies what exists works correctly, it doesn't add new user-facing capability. Still reflects "the Core MVP works," not "the Core MVP is the whole original brief." |
 
-## Overall Health Score: **5.9 / 10**
-(Simple mean of the above 14 categories. History: 5.4 → 5.7 → 5.9.)
+## Overall Health Score: **6.3 / 10**
+(Simple mean of the above 14 categories. History: 5.4 → 5.7 → 5.9 → 6.3.)
 
-**Read this as**: steady, real progress — each checkpoint reflects either genuine new verification or a genuine gap closure, never a re-read of the same code with a rosier number attached. The pattern worth noticing across all three scores: this project gains more from *proving things work* and *fixing what verification finds* than from writing more unverified code. The next biggest lever remaining is automated tests — everything else scoring below 6 (Accessibility, Scalability, Testing itself, Feature completeness relative to the full brief) either needs work that hasn't been prioritized yet or verification that hasn't happened yet, not a rewrite.
+**Read this as**: the biggest single jump so far, and it came from adding real regression protection rather than from verifying more things by hand — a qualitatively different kind of progress than the previous three checkpoints. The pattern across all four scores still holds: every point gained here was earned by something concrete (a test that runs and passes, a refactor that makes testing possible), never by re-describing existing code more favorably. What's still holding the overall score back is almost entirely "hasn't been done yet, not hidden" — no CI, no deployment, no full brief coverage — which is a healthy place for an honest scorecard to be.
 
 ## Update This When
-- Automated tests are added (Testing score should jump significantly beyond what manual verification alone can justify).
+- CI is set up (Testing/Developer experience should move further once the suite runs on every push, not just when someone remembers).
+- The automated-suite gaps close (`TransferForm.jsx`, page components, coverage reporting).
 - Deployment happens (unlocks a real Performance/Security assessment instead of a local-machine test).
 - Loans, statements, or notifications are built (Feature completeness moves toward the full original brief, not just the Core MVP).

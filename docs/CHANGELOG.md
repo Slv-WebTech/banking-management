@@ -2,6 +2,36 @@
 
 Human-readable development history. Newest first.
 
+## 2026-08-17 (later) — Automated test suite + commit identity fix
+**Feature/fix**: New capability (automated tests) + a correction to the previous commit.
+
+**Important files**: `server/app.js` (new — Express app extracted from `server.js`, no side effects), `server/server.js` (now a thin entry point), `server/jest.config.js` (new), `server/tests/` (new — `setup.js`, `helpers.js`, `auth.test.js`, `accounts.test.js`, `transactions.test.js`, `admin.test.js`), `server/routes/authRoutes.js` + `transactionRoutes.js` (rate limiters now skip under `NODE_ENV=test`), `client/vite.config.js` (added `test` block), `client/src/test/setup.js` (new), `client/src/context/AuthContext.test.jsx`, `client/src/components/ProtectedRoute.test.jsx`, `client/src/components/TransactionTable.test.jsx`, `client/src/components/DepositForm.test.jsx` (all new).
+
+**What was built**: Jest + Supertest + `mongodb-memory-server` for the backend (32 tests across 4 files), Vitest + React Testing Library for the frontend (21 tests across 4 files). Coverage follows the priority list [TESTING.md](TESTING.md) laid out after the two manual verification sessions: transfer/deposit atomicity and idempotency, auth and suspension behavior (including the live-DB-role-check design), ownership/role authorization boundaries, pagination/filtering, and — deliberately — a regression test for the `TransactionTable` type-label bug found and fixed on 2026-08-16, so that specific mistake can't silently reappear.
+
+**Architectural changes**: `server.js` split into `app.js` (exportable Express app, no `connectDB()`/`listen()` side effects) + a thin `server.js` (imports `app.js`, connects, listens) — a small, necessary refactor for Supertest to be able to import the app without a real network/DB connection. No behavior change; verified the running dev server still worked correctly after the split (nodemon auto-restarted, health check and login both still returned correct responses).
+
+**Breaking changes**: none.
+
+**Migrations**: none.
+
+**Notable decisions**: one `mongodb-memory-server` instance per backend test file (via `setupFilesAfterEnv`) rather than one shared instance for the whole run — simpler isolation, standard pattern, accepted the ~70s total runtime cost. Rate limiters explicitly skip in `NODE_ENV=test` rather than being mocked out, so the *rest* of each limiter's behavior stays identical to production in tests.
+
+**Also this session**: fixed the initial commit's author/committer identity. The very first commit had been pushed with author "VivekLZT" (the machine's global git identity) and a "Co-Authored-By: Claude" trailer; the user asked for both removed. Fixed via `git commit --amend --author=...` combined with one-off `GIT_COMMITTER_NAME`/`GIT_COMMITTER_EMAIL` environment variables (not `git config`, which this project's operating rules never touch) — both fields now correctly show `Slv-WebTech <70682890+Slv-WebTech@users.noreply.github.com>`, matched to the actual numeric GitHub ID so the commit links to the profile. Required a `--force-with-lease` push to `main` since the original commit was already on the remote — done only after explicit confirmation, since rewriting pushed history on a default branch is exactly the kind of action this project's operating rules hold back on without it.
+
+**Result**: the project now has real regression protection for its highest-risk logic, and its git history correctly attributes authorship without exposing AI-assistance in the commit trail (the user's explicit preference for this repo).
+
+## 2026-08-17 — Version control: git init + push to GitHub
+**Feature/fix**: Infrastructure — no code changes.
+
+**What happened**: `git init` at `D:\banking-management`, branch renamed `master` → `main`, initial commit (66 files, 7096 lines) covering everything built through the 2026-08-16 deposit feature. Created a new private repo `github.com/Slv-WebTech/banking-management` via `gh repo create`, added it as `origin` using the `github-personal` SSH host alias (not the environment's default work identity), pushed and set upstream tracking.
+
+**Important files**: none changed — this commit is the baseline.
+
+**Notable decisions**: repo created private (matches the majority pattern of the user's other repos, no reason to default public); pushed via the personal SSH identity specifically, per explicit instruction — this project's remote must continue using `github-personal`, never the default `github.com` alias (which resolves to a different, work identity in this environment).
+
+**Result**: the fully-working Core MVP state now has version history and an off-machine backup, before the automated-test-suite work begins.
+
 ## 2026-08-16 — Self-service deposit feature (closes the funding gap)
 **Feature/fix**: New feature — the account-funding mechanism found missing on 2026-08-14.
 

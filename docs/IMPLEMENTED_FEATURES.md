@@ -1,6 +1,6 @@
 # Implemented Features
 
-Factual record of what exists in code today. **Updated 2026-08-16**: everything below was verified with a real, live end-to-end run — real MongoDB, real HTTP requests, and for the UI-facing items, real clicks in a real browser. See [TESTING.md](TESTING.md) for the full verification log (exact requests made, exact results, what's still not covered).
+Factual record of what exists in code today. Everything below was verified with a real, live end-to-end run — real MongoDB, real HTTP requests, and for the UI-facing items, real clicks in a real browser (2026-08-14 and 2026-08-16). **As of 2026-08-17**, the highest-risk logic (auth, authorization, transfer/deposit atomicity+idempotency) also has automated regression tests — see [TESTING.md](TESTING.md) for the full verification log and exactly which "Testing status" lines below now also mean "and there's a test for this."
 
 ## Authentication
 - **What**: Register, login, session restore via JWT.

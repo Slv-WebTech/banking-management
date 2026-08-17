@@ -17,22 +17,27 @@ There is no API gateway, no BFF layer, no server-side rendering — a plain SPA-
 - **Routing**: `src/App.jsx` — a flat route table (`/`, `/login`, `/register`, `/dashboard`, `/employee`, `/admin`, `*`). Role-based gating via `<ProtectedRoute roles={[...]}>` (`src/components/ProtectedRoute.jsx`), which redirects to `/login` if unauthenticated or `/` if the role doesn't match.
 - **State management**: No Redux/Zustand/Context-heavy state tree. Just `AuthContext` (`src/context/AuthContext.jsx`) for the current user + JWT, and local `useState`/`useEffect` per page for data fetching. This is intentional at current scale — see [DECISIONS.md](DECISIONS.md).
 - **API layer**: `src/api/axios.js` — a single Axios instance with a request interceptor that attaches `Authorization: Bearer <token>` from `localStorage`, and a response interceptor that clears stored auth on `401`.
-- **Component structure**: Pages (`src/pages/`) own data fetching and layout; shared presentational pieces (`AccountCard`, `TransferForm`, `TransactionTable`, `Navbar`, `ProtectedRoute`) live in `src/components/`.
+- **Component structure**: Pages (`src/pages/`) own data fetching and layout; shared presentational pieces (`AccountCard`, `TransferForm`, `DepositForm`, `TransactionTable`, `Navbar`, `ProtectedRoute`) live in `src/components/`.
+- **Tests** (added 2026-08-17): co-located with what they test as `*.test.jsx` (e.g. `TransactionTable.test.jsx` sits next to `TransactionTable.jsx`), run via Vitest. `src/api/axios.js` is mocked in any test that touches it — see [TESTING.md](TESTING.md).
 - **Styling**: One global stylesheet (`src/index.css`), no CSS-in-JS, no component-scoped CSS modules. Utility-ish class names (`.card`, `.btn`, `.badge-*`) reused across pages. See [PROJECT_STYLE.md](PROJECT_STYLE.md).
 
 ## Backend Architecture (`server/`)
 Standard layered Express app:
 
 ```
-server.js            → app bootstrap, middleware wiring, DB connect, listen
-config/db.js         → Mongoose connection
-models/               → Mongoose schemas (User, Account, Transaction)
-middleware/           → auth (JWT verify + RBAC), validate (express-validator results), errorHandler
-controllers/           → request handlers (business logic lives here, not in routes)
-routes/                → route tables, wire validation + middleware + controller per endpoint
-utils/                  → generateToken, generateAccountNumber, asyncHandler
-scripts/                → one-off CLI scripts, e.g. seedAdmin.js (run via `npm run seed:admin`), not part of the running server
+app.js                → the Express app itself: middleware wiring, route mounting — NO side effects (no DB connect, no listen)
+server.js             → thin entry point: requires app.js, connects DB, calls app.listen()
+config/db.js          → Mongoose connection
+models/                → Mongoose schemas (User, Account, Transaction)
+middleware/            → auth (JWT verify + RBAC), validate (express-validator results), errorHandler
+controllers/            → request handlers (business logic lives here, not in routes)
+routes/                 → route tables, wire validation + middleware + controller per endpoint
+utils/                   → generateToken, generateAccountNumber, asyncHandler
+scripts/                 → one-off CLI scripts, e.g. seedAdmin.js (run via `npm run seed:admin`), not part of the running server
+tests/                    → Jest/Supertest suite (see TESTING.md) — imports app.js directly, never server.js
 ```
+
+**Why `app.js` and `server.js` are split** (added 2026-08-17): before this, `server.js` called `connectDB()` and `app.listen()` as import-time side effects, which meant any test file that imported it would try to open a real database connection and bind a real port. `app.js` now exports a plain, side-effect-free Express app that Supertest can exercise directly in-process; `server.js` is the only thing that actually starts a live server.
 
 - **Request lifecycle**: `helmet` → `cors` → `express.json()` → `express-mongo-sanitize` → rate limiter (`/api/*`) → route-specific validators (`express-validator`) → `protect` (JWT auth, when required) → `authorize(...)` (role check, when required) → controller (wrapped in `asyncHandler` so thrown/rejected errors reach `errorHandler`) → `errorHandler`.
 - **Controllers are not wrapped in try/catch individually** — `utils/asyncHandler.js` forwards any rejected promise to Express's `next(err)`, and `middleware/errorHandler.js` is the single place that formats error responses.

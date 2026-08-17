@@ -20,6 +20,7 @@ const transferLimiter = rateLimit({
   max: 10,
   standardHeaders: true,
   legacyHeaders: false,
+  skip: () => process.env.NODE_ENV === 'test',
   message: { message: 'Too many transfer attempts, please slow down' },
 });
 
