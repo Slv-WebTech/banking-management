@@ -4,6 +4,19 @@ Architecture Decision Record log. Newest first.
 
 ---
 
+**Decision**: Loan interest rate is set by staff at approval time, not chosen by the customer at application time.
+**Date**: 2026-08-22
+**Context**: Building the loan management module raised a question the original brief didn't specify: who decides the interest rate on an approved loan?
+**Options considered**:
+1. Customer proposes a rate at application time — simpler form, but lets an applicant pick a favorable rate with no underwriting, and gives the staff "review" step nothing to actually decide.
+2. A single system-wide fixed rate for all loans — no staff agency either, and doesn't reflect how real underwriting varies rate by risk/term.
+3. Staff sets the rate at approval time (this project's choice) — mirrors real underwriting, and makes "approve" a genuine decision rather than a rubber stamp.
+**Decision**: Option 3. The application form only collects `principal`, `termMonths`, `disbursalAccount`, and an optional `purpose`; `annualInterestRate` is supplied by staff in the `PATCH /api/loans/:id/approve` request body (client defaults the input to 10% as a starting point, staff can change it).
+**Reason**: Matches real banking practice and gives the employee/admin review step actual meaning.
+**Consequences**: A customer applying for a loan has no visibility into the rate until it's approved — there's no rate-preview or negotiation step. Acceptable for a portfolio-scale demo; a real product would likely show a rate range up front.
+
+---
+
 **Decision**: Self-service deposit (customer deposits into their own account directly) instead of staff-initiated deposit.
 **Date**: 2026-08-16
 **Context**: Live end-to-end testing on 2026-08-14 found that no account could ever receive its first rupee — there was no deposit mechanism at all, only transfers between already-funded accounts. This blocked the core transfer feature from being usable by a real new user. Two ways to close the gap: let customers deposit into their own accounts directly, or require an employee/staff member to initiate the deposit (simulating a teller/cash counter).

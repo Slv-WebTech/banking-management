@@ -6,6 +6,8 @@ const TYPE_LABELS = {
   'transfer-debit': 'Debit',
   deposit: 'Deposit',
   withdrawal: 'Withdrawal',
+  'loan-disbursement': 'Loan Disbursement',
+  'loan-repayment': 'Loan Repayment',
 };
 
 const STATUS_TONE = {
@@ -19,11 +21,13 @@ const TYPE_ICONS = {
   'transfer-debit': 'arrowLeftRight',
   deposit: 'arrowDown',
   withdrawal: 'arrowLeftRight',
+  'loan-disbursement': 'arrowDown',
+  'loan-repayment': 'arrowLeftRight',
 };
 
 function amountClass(type) {
-  if (type === 'transfer-credit' || type === 'deposit') return 'amount-credit';
-  if (type === 'transfer-debit' || type === 'withdrawal') return 'amount-debit';
+  if (type === 'transfer-credit' || type === 'deposit' || type === 'loan-disbursement') return 'amount-credit';
+  if (type === 'transfer-debit' || type === 'withdrawal' || type === 'loan-repayment') return 'amount-debit';
   return '';
 }
 
@@ -46,7 +50,7 @@ export default function TransactionTable({
           <Icon name="search" size={16} className="input-icon" />
           <input
             type="text"
-            placeholder="Search by reference..."
+            placeholder="Search by reference, account, or note..."
             value={filters.search}
             onChange={(e) => onFilterChange({ ...filters, search: e.target.value })}
           />

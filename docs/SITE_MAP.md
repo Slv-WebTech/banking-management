@@ -6,6 +6,7 @@ Application
 ├── /login
 ├── /register
 ├── /dashboard          (Customer)
+├── /loans              (Customer)
 ├── /employee           (Employee, also accessible to Admin)
 ├── /admin              (Admin only)
 └── * (404 Not Found)
@@ -43,13 +44,21 @@ Application
 - **API dependencies**: `GET /accounts/mine`, `POST /accounts`, `POST /transactions/deposit`, `POST /transactions/transfer`, `GET /transactions/mine`.
 - **Status**: IMPLEMENTED.
 
+### `/loans`
+- **Page**: `pages/CustomerLoans.jsx`.
+- **Purpose**: apply for a loan against one of the caller's active accounts; view own loans (status, EMI, schedule); repay installments.
+- **Access**: `ProtectedRoute roles={['customer']}`.
+- **Important components**: none beyond the page itself (an inline `LoanCard` sub-component handles the schedule table).
+- **API dependencies**: `GET /accounts/mine`, `POST /loans`, `GET /loans/mine`, `POST /loans/:id/pay`.
+- **Status**: IMPLEMENTED (2026-08-22).
+
 ### `/employee`
 - **Page**: `pages/EmployeeDashboard.jsx`.
-- **Purpose**: staff view of all customer accounts (searchable) and all transactions.
+- **Purpose**: staff view of all customer accounts (searchable) and all transactions, plus two action queues: pending loan applications (approve, setting the interest rate, or reject) and pending account-closure requests (approve or reject).
 - **Access**: `ProtectedRoute roles={['employee', 'admin']}`.
 - **Important components**: `TransactionTable` (with `showAccountColumn`).
-- **API dependencies**: `GET /accounts/all`, `GET /transactions/all`.
-- **Status**: IMPLEMENTED (view-only — no loan approval or request-handling UI, since those features don't exist yet).
+- **API dependencies**: `GET /accounts/all`, `GET /transactions/all`, `GET /loans/all`, `PATCH /loans/:id/approve`, `PATCH /loans/:id/reject`, `POST /accounts/:id/approve-closure`, `POST /accounts/:id/reject-closure`.
+- **Status**: IMPLEMENTED (2026-08-22 added the loan-review and closure-approval queues; previously view-only).
 
 ### `/admin`
 - **Page**: `pages/AdminDashboard.jsx`.
@@ -67,7 +76,6 @@ Application
 ## Not Yet a Route (planned)
 - Account detail page (a `GET /accounts/:id` endpoint exists server-side but no frontend route/page calls it directly).
 - Forgot-password flow.
-- Loan application / tracking pages.
 - Statement download page/action.
 
 Keep this file in sync with `client/src/App.jsx` — if a route is added/removed there, update this table in the same change.

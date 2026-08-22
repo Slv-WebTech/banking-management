@@ -19,6 +19,16 @@
   - Acceptance criteria: current working state has version history and a remote backup, with correct attribution. **Met.**
 - **Automated test suite** (2026-08-17, user's explicit choice over other "Next" items): Jest + Supertest + `mongodb-memory-server` for `server/` (32 tests), Vitest + React Testing Library for `client/` (21 tests). Covers the critical-flow priority list [TESTING.md](TESTING.md) laid out after the two manual verification sessions, plus a dedicated regression test for the `TransactionTable` bug found on 2026-08-16.
   - Acceptance criteria: `npm test` passes in both `client/` and `server/`; the highest-risk logic (money movement, auth/authorization, the specific bug class already found once) has real regression protection. **Met** — see [TESTING.md](TESTING.md) for exactly what's covered and what isn't yet.
+- **Premium UI/UX redesign** (2026-08-22): full design-system rebuild across every screen — see [CHANGELOG.md](CHANGELOG.md) for the breakdown.
+  - Acceptance criteria: `vite build` succeeds, all pre-existing client tests still pass unmodified (except where a new feature intentionally changed asserted text, e.g. the search placeholder). **Met.**
+- **CI pipeline** (2026-08-22): `.github/workflows/ci.yml` runs both test suites + the client build on push/PR to `main`.
+  - Acceptance criteria: workflow file present and syntactically valid. **Met** for the file itself; **not yet verified** by an actual GitHub Actions run.
+- **Staff account-closure approval** (2026-08-22): `POST /api/accounts/:id/approve-closure`, `.../reject-closure`, plus an EmployeeDashboard "Pending Closures" queue.
+  - Acceptance criteria: staff can finalize a `PendingClosure` account to `Closed` or revert it to `Active` through the UI, with tests covering ownership and the not-pending case. **Met.**
+- **Human-searchable transaction search** (2026-08-22): `search` now matches free-text `description` or a counterparty's account number, not just the internal `reference`.
+  - Acceptance criteria: covered by tests confirming the broader match and confirming search still can't leak another customer's transactions. **Met.** UI placeholder text updated to reflect it.
+- **Loan management module** (2026-08-22): apply → staff approve (sets rate, disburses, generates schedule) / reject → customer repays EMIs → auto-closes when fully paid. New `Loan` model, `loanSchedule.js` amortization math, full controller/routes, `/loans` customer page, staff review queue in `EmployeeDashboard.jsx`.
+  - Acceptance criteria: EMI/amortization math independently unit-tested (13 tests, including hand-derived exact values) before anything else depended on it, given [FUTURE_FEATURES.md](FUTURE_FEATURES.md) flagged this as needing careful testing; full apply/approve/reject/repay flow covered by 14 integration tests. **Met.**
 
 ## In Progress
 Nothing. Clean checkpoint.
@@ -26,18 +36,16 @@ Nothing. Clean checkpoint.
 ## Next
 *(Recommended order.)*
 
-1. **CI pipeline** — now genuinely actionable since a real test suite exists to run. GitHub Actions is the natural choice given the repo is already on GitHub.
-2. **Staff account-closure approval endpoint** — completes the one partially-implemented feature already in the codebase.
-3. **Fill the automated-suite gaps** — `TransferForm.jsx` especially (carries as much risk as the now-tested `DepositForm.jsx`), plus coverage reporting. See [TESTING.md](TESTING.md)'s gaps list.
-4. **Human-searchable transaction search** (by counterparty account number / description, not just the internal reference) — small, and would have made manual testing easier both times it's been done so far.
-5. **Deposit cap or staff-initiated deposit** — optional realism upgrade now that self-service deposit exists; see [DECISIONS.md](DECISIONS.md) and [FUTURE_FEATURES.md](FUTURE_FEATURES.md). Not urgent — the current version is a deliberate, documented trade-off, not a bug.
+1. **Verify the CI pipeline actually runs green** on the next push — it's never executed for real yet.
+2. **Re-verify the redesigned dashboards live** in a browser against a real MongoDB instance — only Login/Register/404 were spot-checked live during the redesign itself (see [TESTING.md](TESTING.md)).
+3. **Fill the automated-suite gaps** — `TransferForm.jsx`, the page components (including the new `CustomerLoans.jsx`), `AccountCard.jsx`, `Navbar.jsx` all still have zero direct test coverage, plus coverage reporting. See [TESTING.md](TESTING.md)'s gaps list.
+4. **Deposit cap or staff-initiated deposit** — optional realism upgrade now that self-service deposit exists; see [DECISIONS.md](DECISIONS.md) and [FUTURE_FEATURES.md](FUTURE_FEATURES.md). Not urgent — the current version is a deliberate, documented trade-off, not a bug.
 
 ## Later
-6. Loan management module (new model + controller/routes + UI, both customer and employee sides).
-7. Statement generation with PDF export.
-8. Notifications (in-app first).
-9. Deployment (Vercel/Render/Atlas) — needs user-provided hosting accounts/credentials.
-10. Bonus features from [FUTURE_FEATURES.md](FUTURE_FEATURES.md) (dark mode, QR payments, multi-currency, etc.) — only after the above.
+5. Statement generation with PDF export.
+6. Notifications (in-app first).
+7. Deployment (Vercel/Render/Atlas) — needs user-provided hosting accounts/credentials.
+8. Bonus features from [FUTURE_FEATURES.md](FUTURE_FEATURES.md) (dark mode, QR payments, multi-currency, etc.) — only after the above.
 
 ## Blocked
 - **Deployment** — blocked on the user choosing/providing hosting + database credentials.

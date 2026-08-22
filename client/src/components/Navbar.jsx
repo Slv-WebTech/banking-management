@@ -4,7 +4,10 @@ import { useAuth } from '../context/AuthContext.jsx';
 import Icon from './ui/Icon.jsx';
 
 const NAV_ITEMS = {
-  customer: [{ to: '/dashboard', label: 'Dashboard', icon: 'layout' }],
+  customer: [
+    { to: '/dashboard', label: 'Dashboard', icon: 'layout' },
+    { to: '/loans', label: 'Loans', icon: 'banknote' },
+  ],
   employee: [{ to: '/employee', label: 'Operations', icon: 'building' }],
   admin: [
     { to: '/admin', label: 'Overview', icon: 'layout' },

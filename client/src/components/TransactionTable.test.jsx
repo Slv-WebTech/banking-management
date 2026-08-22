@@ -143,7 +143,7 @@ describe('TransactionTable', () => {
         onPageChange={vi.fn()}
       />
     );
-    await user.type(screen.getByPlaceholderText('Search by reference...'), 'x');
+    await user.type(screen.getByPlaceholderText('Search by reference, account, or note...'), 'x');
     expect(onFilterChange).toHaveBeenCalledWith({ ...baseFilters, search: 'x' });
   });
 });

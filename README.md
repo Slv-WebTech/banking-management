@@ -6,13 +6,13 @@ A full-stack banking application (React + Node.js/Express + MongoDB) with JWT au
 
 As of 2026-08-22:
 - **Frontend redesign**: the entire UI received a full visual/UX overhaul — new design system (color/type/spacing tokens), a sticky app header with role-aware navigation, a full-bleed split-screen auth flow, dark "bank card"-style account cards, consolidated Deposit/Transfer tabs, skeleton loading and empty states throughout. `vite build` succeeds and all 21 client tests pass; Login, Register, and 404 were spot-checked live in a browser. The three authenticated dashboards have **not** been re-verified live yet (needs a running MongoDB instance).
-- **New backend features** (full test coverage — 66 server tests, up from 32 — **backend + tests only, no frontend UI yet** for any of these three):
-  - Staff approval/rejection of pending account-closure requests (`POST /api/accounts/:id/approve-closure`, `.../reject-closure`) — completes the previously partial closure flow.
+- **Three new features, backend + frontend, full test coverage** (66 server tests, up from 32; server-side only — none of the new UI has automated tests yet):
+  - Staff approval/rejection of pending account-closure requests, via a new "Pending Closures" queue on the Employee dashboard — completes the previously partial closure flow.
   - Broader transaction search — matches free-text description or a counterparty's account number, not just the internal `reference`.
-  - **Loan management**: customers apply for a loan against one of their accounts; staff approve (setting the interest rate, which disburses the principal and generates a reducing-balance EMI schedule) or reject; customers repay installments, closing the loan once fully paid. See `server/utils/loanSchedule.js` for the amortization math (independently unit-tested) and `server/controllers/loanController.js` / `server/routes/loanRoutes.js` for the API.
+  - **Loan management**: customers apply for a loan against one of their accounts (new `/loans` page); staff review a "Loan Applications" queue on the Employee dashboard and approve (setting the interest rate, which disburses the principal and generates a reducing-balance EMI schedule) or reject; customers repay installments and view their schedule, with the loan auto-closing once fully paid. See `server/utils/loanSchedule.js` for the amortization math (independently unit-tested with hand-derived exact values) and `server/controllers/loanController.js` / `server/routes/loanRoutes.js` for the API.
 - **CI**: a GitHub Actions pipeline (`.github/workflows/ci.yml`) now runs both test suites + the client build on push/PR to `main` — not yet verified by an actual run.
 
-Not deployed. See [`docs/DEV_CONTEXT.md`](docs/DEV_CONTEXT.md) for exactly where things stand and [`docs/README.md`](docs/README.md) for the full documentation index.
+None of the three new features above have been exercised live in a browser yet (needs a running MongoDB instance) — only verified via the automated test suites and a successful production build. Not deployed. See [`docs/DEV_CONTEXT.md`](docs/DEV_CONTEXT.md) for exactly where things stand and [`docs/README.md`](docs/README.md) for the full documentation index.
 
 ## Stack
 - **Frontend**: React 18, Vite, React Router

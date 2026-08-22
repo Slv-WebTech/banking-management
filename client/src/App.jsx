@@ -4,6 +4,7 @@ import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import CustomerDashboard from './pages/CustomerDashboard.jsx';
+import CustomerLoans from './pages/CustomerLoans.jsx';
 import EmployeeDashboard from './pages/EmployeeDashboard.jsx';
 import AdminDashboard from './pages/AdminDashboard.jsx';
 import NotFound from './pages/NotFound.jsx';
@@ -47,6 +48,14 @@ export default function App() {
           element={
             <ProtectedRoute roles={['customer']}>
               <CustomerDashboard />
+            </ProtectedRoute>
+          }
+        />
+        <Route
+          path="/loans"
+          element={
+            <ProtectedRoute roles={['customer']}>
+              <CustomerLoans />
             </ProtectedRoute>
           }
         />

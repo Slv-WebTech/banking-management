@@ -2,6 +2,25 @@
 
 Human-readable development history. Newest first.
 
+## 2026-08-22 (later) — Frontend for closure approval, transaction search, and loan management
+**Feature/fix**: Completes the frontend half of the three backend features shipped earlier the same day (see the entry directly below). All three are now usable end-to-end through the UI.
+
+**Important files**: `client/src/pages/CustomerLoans.jsx` (new — apply form, loan list, expandable EMI schedule, pay action), `client/src/pages/EmployeeDashboard.jsx` (new "Loan Applications" queue with a per-row rate input and Approve/Reject, new "Pending Closures" queue with Approve/Reject), `client/src/components/Navbar.jsx` (new "Loans" nav link for customers), `client/src/App.jsx` (new `/loans` route), `client/src/components/TransactionTable.jsx` (search placeholder updated to reflect the broader search; `loan-disbursement`/`loan-repayment` added to the type label/icon/amount-color maps), `client/src/components/TransactionTable.test.jsx` (placeholder assertion updated to match), `client/src/index.css` (new `.input-compact` class for the staff rate input).
+
+**What was built**: A customer-facing `/loans` page (apply for a loan, see application status, view the amortization schedule inline per loan, pay the next EMI) and two new staff action queues on the Employee dashboard, all built with the same design-system components (`Button`, `Badge`, `EmptyState`, `Skeleton`) introduced in the redesign — no new visual language, no one-off styling.
+
+**Architectural changes**: none beyond the one new route. All existing prop APIs, state, and data-loading patterns were kept consistent with the rest of the app (`useCallback`-memoized loaders, a `Promise.all` in the mount `useEffect`, busy-id-per-row pattern for row-level async actions — same shape as the existing `AdminDashboard.jsx` user-actions table).
+
+**Breaking changes**: none, with one deliberate exception — `TransactionTable`'s search input placeholder changed from "Search by reference..." to "Search by reference, account, or note..." to reflect real new capability, and the corresponding test assertion was updated in the same commit.
+
+**Migrations**: none.
+
+**Notable decisions**: the staff loan-approval rate input defaults to 10% per row rather than requiring staff to type a rate from scratch every time (most approvals will use a standard rate; unusual cases can still override it). The "Pending Closures" and "Loan Applications" queues render an explicit "all caught up" empty state rather than disappearing when there's nothing to review, so staff get positive confirmation nothing is missing rather than an ambiguous gap in the page.
+
+**Known gaps at this checkpoint**: zero automated test coverage for any of the new frontend (`CustomerLoans.jsx`, the two new EmployeeDashboard queues) — tracked in [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md). None of it has been exercised live in a browser yet (needs a running MongoDB instance).
+
+**Result**: all four features requested this session (redesign, closure approval, transaction search, loan management) are now complete end-to-end, backend and frontend, with the highest-risk logic (the EMI/amortization math) tested before anything was built on top of it.
+
 ## 2026-08-22 — Premium UI/UX redesign + closure approval, transaction search, loan management (backend)
 **Feature/fix**: A full frontend visual/UX redesign, plus three new backend features with tests. Frontend UI for the three new backend features is not built yet — tracked as the immediate next step.
 
