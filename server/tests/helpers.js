@@ -38,4 +38,25 @@ async function createUserWithRole(app, role, overrides = {}) {
   return { token, user: { ...user, role } };
 }
 
-module.exports = { registerUser, openAccount, deposit, createUserWithRole };
+async function applyForLoan(app, token, { disbursalAccount, principal, termMonths, purpose }) {
+  return request(app)
+    .post('/api/loans')
+    .set('Authorization', `Bearer ${token}`)
+    .send({ disbursalAccount, principal, termMonths, purpose });
+}
+
+async function approveLoan(app, token, loanId, annualInterestRate = 12) {
+  return request(app)
+    .patch(`/api/loans/${loanId}/approve`)
+    .set('Authorization', `Bearer ${token}`)
+    .send({ annualInterestRate });
+}
+
+module.exports = {
+  registerUser,
+  openAccount,
+  deposit,
+  createUserWithRole,
+  applyForLoan,
+  approveLoan,
+};

@@ -1,6 +1,15 @@
 import { useCallback, useEffect, useState } from 'react';
 import api from '../api/axios';
 import TransactionTable from '../components/TransactionTable.jsx';
+import Icon from '../components/ui/Icon.jsx';
+import Badge from '../components/ui/Badge.jsx';
+import { SkeletonCards, SkeletonRows } from '../components/ui/Skeleton.jsx';
+
+const STATUS_TONE = {
+  Active: 'success',
+  PendingClosure: 'warning',
+  Closed: 'danger',
+};
 
 export default function EmployeeDashboard() {
   const [accounts, setAccounts] = useState([]);
@@ -34,21 +43,38 @@ export default function EmployeeDashboard() {
     setPage(1);
   }
 
-  if (loading) return <div className="page-loading">Loading dashboard...</div>;
+  if (loading) {
+    return (
+      <div>
+        <SkeletonCards count={1} />
+        <SkeletonRows count={5} />
+      </div>
+    );
+  }
 
   return (
     <div>
-      <h2>Employee Dashboard</h2>
+      <div className="page-header">
+        <div>
+          <h1 className="page-title">Operations</h1>
+          <p className="page-subtitle">Look up customer accounts and review transaction activity across the bank.</p>
+        </div>
+      </div>
 
       <div className="card">
-        <h3 style={{ marginTop: 0 }}>Customer Accounts</h3>
+        <div className="card-header">
+          <h3>Customer Accounts</h3>
+        </div>
         <div className="filters-bar">
-          <input
-            type="text"
-            placeholder="Search by account number..."
-            value={accountSearch}
-            onChange={(e) => setAccountSearch(e.target.value)}
-          />
+          <div className="input-group">
+            <Icon name="search" size={16} className="input-icon" />
+            <input
+              type="text"
+              placeholder="Search by account number..."
+              value={accountSearch}
+              onChange={(e) => setAccountSearch(e.target.value)}
+            />
+          </div>
         </div>
         <div className="table-wrap">
           <table>
@@ -66,16 +92,21 @@ export default function EmployeeDashboard() {
                 <tr key={acc._id}>
                   <td>{acc.accountNumber}</td>
                   <td>
-                    {acc.owner?.name} ({acc.owner?.email})
+                    <div className="cell-user-text">
+                      <strong>{acc.owner?.name}</strong>
+                      <span>{acc.owner?.email}</span>
+                    </div>
                   </td>
                   <td>{acc.accountType}</td>
                   <td>₹{acc.balance.toLocaleString('en-IN')}</td>
-                  <td>{acc.status}</td>
+                  <td>
+                    <Badge tone={STATUS_TONE[acc.status] || 'neutral'}>{acc.status}</Badge>
+                  </td>
                 </tr>
               ))}
               {accounts.length === 0 && (
                 <tr>
-                  <td colSpan={5} style={{ textAlign: 'center', padding: 20 }}>
+                  <td colSpan={5} className="table-empty">
                     No accounts found
                   </td>
                 </tr>

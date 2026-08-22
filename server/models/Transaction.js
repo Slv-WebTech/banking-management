@@ -6,7 +6,7 @@ const transactionSchema = new mongoose.Schema(
     counterpartyAccount: { type: mongoose.Schema.Types.ObjectId, ref: 'Account' },
     type: {
       type: String,
-      enum: ['transfer-debit', 'transfer-credit', 'deposit', 'withdrawal'],
+      enum: ['transfer-debit', 'transfer-credit', 'deposit', 'withdrawal', 'loan-disbursement', 'loan-repayment'],
       required: true,
     },
     amount: { type: Number, required: true, min: 0 },

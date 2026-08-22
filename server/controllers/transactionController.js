@@ -122,17 +122,30 @@ async function depositFunds(req, res) {
   res.status(201).json({ message: 'Deposit successful', transaction });
 }
 
-function buildHistoryFilter(accountIds, query) {
+// accountIds narrows the search to a specific set of accounts (the caller's
+// own, for /mine); omit it for the staff-wide /all view.
+async function buildHistoryFilter(query, accountIds) {
   const { type, status, search, from, to } = query;
-  const filter = { account: { $in: accountIds } };
+  const filter = {};
 
+  if (accountIds) filter.account = { $in: accountIds };
   if (type) filter.type = type;
   if (status) filter.status = status;
-  if (search) filter.reference = { $regex: search, $options: 'i' };
   if (from || to) {
     filter.createdAt = {};
     if (from) filter.createdAt.$gte = new Date(from);
     if (to) filter.createdAt.$lte = new Date(to);
+  }
+  if (search) {
+    const matchingAccounts = await Account.find({ accountNumber: { $regex: search, $options: 'i' } }).select('_id');
+    const matchingAccountIds = matchingAccounts.map((a) => a._id);
+    filter.$or = [
+      { reference: { $regex: search, $options: 'i' } },
+      { description: { $regex: search, $options: 'i' } },
+      ...(matchingAccountIds.length
+        ? [{ account: { $in: matchingAccountIds } }, { counterpartyAccount: { $in: matchingAccountIds } }]
+        : []),
+    ];
   }
   return filter;
 }
@@ -148,7 +161,7 @@ async function getMyTransactions(req, res) {
   }
   const accountIds = accountId ? [accountId] : ownedIds;
 
-  const filter = buildHistoryFilter(accountIds, req.query);
+  const filter = await buildHistoryFilter(req.query, accountIds);
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));
 
@@ -166,10 +179,7 @@ async function getMyTransactions(req, res) {
 
 async function listAllTransactions(req, res) {
   const { page = 1, limit = 20 } = req.query;
-  const filter = {};
-  if (req.query.type) filter.type = req.query.type;
-  if (req.query.status) filter.status = req.query.status;
-  if (req.query.search) filter.reference = { $regex: req.query.search, $options: 'i' };
+  const filter = await buildHistoryFilter(req.query);
 
   const pageNum = Math.max(1, parseInt(page, 10) || 1);
   const pageSize = Math.min(100, Math.max(1, parseInt(limit, 10) || 20));

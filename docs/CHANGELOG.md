@@ -2,6 +2,33 @@
 
 Human-readable development history. Newest first.
 
+## 2026-08-22 — Premium UI/UX redesign + closure approval, transaction search, loan management (backend)
+**Feature/fix**: A full frontend visual/UX redesign, plus three new backend features with tests. Frontend UI for the three new backend features is not built yet — tracked as the immediate next step.
+
+**Important files**:
+- Redesign (all of `client/src/`): `index.css` (new design-token system — color/type/spacing/shadow/motion scales, replaces the old ad hoc CSS), new `client/src/components/ui/` (`Icon`, `Button`, `Badge`, `Spinner`, `EmptyState`, `Skeleton`), every existing component and page restyled, `App.jsx` (auth routes now render full-bleed with no navbar chrome).
+- Closure approval: `server/controllers/accountController.js` (`approveClosure`, `rejectClosure`), `server/routes/accountRoutes.js`.
+- Transaction search: `server/controllers/transactionController.js` (`buildHistoryFilter` unified between `/mine` and `/all`, now matches free-text description and counterparty account number, not just `reference`).
+- Loan management (new): `server/models/Loan.js`, `server/utils/loanSchedule.js` (EMI + amortization schedule, pure functions), `server/controllers/loanController.js`, `server/routes/loanRoutes.js`, `server/models/Transaction.js` (`type` enum gains `loan-disbursement`/`loan-repayment`), mounted at `/api/loans` in `server/app.js`.
+- Tests: `server/tests/loanSchedule.test.js` (13 tests, pure math), `server/tests/loans.test.js` (14 tests, full apply/approve/reject/repay integration), additions to `server/tests/accounts.test.js` and `server/tests/transactions.test.js`.
+- CI: `.github/workflows/ci.yml` (new).
+
+**What was built**: See the README's 2026-08-22 status entry for the user-facing summary. Notably, the loan EMI/amortization math (`loanSchedule.js`) was built and unit-tested *before* anything else depended on it, given it was flagged in [FUTURE_FEATURES.md](FUTURE_FEATURES.md) as needing careful testing before it could be trusted — tests include hand-derived exact expected values (not just self-consistency checks), a zero-interest edge case, and a check that the schedule always sums to exactly the original principal despite per-installment rounding.
+
+**Bug found and fixed during this session's own verification**: the redesigned Login/Register pages initially rendered their headline nearly invisible on the dark auth panel — a global `h1,h2,h3,h4 { color: var(--text-primary) }` base rule (correct for headings on light surfaces) was overriding the intended white text inherited from the dark panel. Caught via a live browser screenshot before this reached the user; fixed by giving `.auth-headline` an explicit color.
+
+**Architectural changes**: Login/Register no longer render inside the shared `Navbar`/`page-container` shell — they get a dedicated full-bleed layout via a small `Shell` component in `App.jsx` keyed off the current route. No route paths changed.
+
+**Breaking changes**: none. All existing component prop APIs, label text, and test-asserted strings were preserved deliberately (see [TESTING.md](TESTING.md) discipline) — all 21 pre-existing client tests and all pre-existing server tests still pass unmodified except for the two files that gained new test cases for the new endpoints.
+
+**Migrations**: none (all new fields/enum values are additive).
+
+**Notable decisions**: loan interest rate is set by staff at approval time, not chosen by the customer at application time — matches how real underwriting works and gives the approve/reject step actual agency instead of being a rubber stamp. Reducing-balance (not flat-rate) EMI, industry standard. A borrower can repay from any of their own active accounts, not only the disbursal account.
+
+**Known gaps at this checkpoint**: no frontend UI yet for closure approval, transaction search (the search *works* today, only the placeholder text still says "Search by reference..."), or loans (no `/loans` page, no "Pending Closures"/"Loan Applications" staff queues). CI has not yet run for real. The three authenticated dashboards have not been re-verified live in a browser since the redesign.
+
+**Result**: a materially more polished, portfolio-ready frontend, and three real backend features (one closing a documented partial-implementation gap, one closing a documented search-quality gap, one delivering the first "Later"-tier feature from [PROJECT_PLAN.md](PROJECT_PLAN.md)) — all with automated regression coverage before any UI was built on top of them.
+
 ## 2026-08-17 (later) — Automated test suite + commit identity fix
 **Feature/fix**: New capability (automated tests) + a correction to the previous commit.
 

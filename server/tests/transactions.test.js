@@ -193,3 +193,53 @@ describe('Transaction history pagination and filtering', () => {
     expect(noMatch.body.total).toBe(0);
   });
 });
+
+describe('Transaction search', () => {
+  test('search matches a free-text description, not just the internal reference', async () => {
+    const { token } = await registerUser(app);
+    const account = await openAccount(app, token);
+    await deposit(app, token, { account: account._id, amount: 250, description: 'Birthday gift from mom' });
+    await deposit(app, token, { account: account._id, amount: 400, description: 'Freelance payment' });
+
+    const res = await request(app)
+      .get('/api/transactions/mine')
+      .query({ search: 'birthday' })
+      .set('Authorization', `Bearer ${token}`);
+    expect(res.body.total).toBe(1);
+    expect(res.body.items[0].description).toBe('Birthday gift from mom');
+  });
+
+  test('search matches the counterparty account number on a transfer', async () => {
+    const alice = await registerUser(app);
+    const bob = await registerUser(app);
+    const aliceAccount = await openAccount(app, alice.token);
+    const bobAccount = await openAccount(app, bob.token);
+    await deposit(app, alice.token, { account: aliceAccount._id, amount: 1000 });
+    await request(app)
+      .post('/api/transactions/transfer')
+      .set('Authorization', `Bearer ${alice.token}`)
+      .send({ fromAccount: aliceAccount._id, toAccountNumber: bobAccount.accountNumber, amount: 300 });
+
+    const res = await request(app)
+      .get('/api/transactions/mine')
+      .query({ search: bobAccount.accountNumber })
+      .set('Authorization', `Bearer ${alice.token}`);
+    expect(res.body.total).toBe(1);
+    expect(res.body.items[0].type).toBe('transfer-debit');
+  });
+
+  test('a customer\'s search on /mine never surfaces another customer\'s transactions', async () => {
+    const alice = await registerUser(app);
+    const bob = await registerUser(app);
+    const aliceAccount = await openAccount(app, alice.token);
+    await openAccount(app, bob.token);
+    await deposit(app, alice.token, { account: aliceAccount._id, amount: 100, description: 'shared-keyword' });
+    await deposit(app, bob.token, { account: (await openAccount(app, bob.token))._id, amount: 100, description: 'shared-keyword' });
+
+    const res = await request(app)
+      .get('/api/transactions/mine')
+      .query({ search: 'shared-keyword' })
+      .set('Authorization', `Bearer ${alice.token}`);
+    expect(res.body.total).toBe(1);
+  });
+});

@@ -72,4 +72,53 @@ describe('Accounts', () => {
     expect(res.status).toBe(200);
     expect(res.body.status).toBe('PendingClosure');
   });
+
+  describe('Staff closure approval', () => {
+    async function setupPendingClosure() {
+      const customer = await registerUser(app);
+      const account = await openAccount(app, customer.token);
+      await request(app)
+        .post(`/api/accounts/${account._id}/request-closure`)
+        .set('Authorization', `Bearer ${customer.token}`);
+      const employee = await createUserWithRole(app, 'employee');
+      return { customer, account, employee };
+    }
+
+    test('a customer cannot approve their own closure request', async () => {
+      const { customer, account } = await setupPendingClosure();
+      const res = await request(app)
+        .post(`/api/accounts/${account._id}/approve-closure`)
+        .set('Authorization', `Bearer ${customer.token}`);
+      expect(res.status).toBe(403);
+    });
+
+    test('an employee can approve a pending closure, setting the account to Closed', async () => {
+      const { account, employee } = await setupPendingClosure();
+      const res = await request(app)
+        .post(`/api/accounts/${account._id}/approve-closure`)
+        .set('Authorization', `Bearer ${employee.token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('Closed');
+    });
+
+    test('approving an account that is not PendingClosure is rejected', async () => {
+      const { token } = await registerUser(app);
+      const account = await openAccount(app, token);
+      const employee = await createUserWithRole(app, 'employee');
+
+      const res = await request(app)
+        .post(`/api/accounts/${account._id}/approve-closure`)
+        .set('Authorization', `Bearer ${employee.token}`);
+      expect(res.status).toBe(400);
+    });
+
+    test('an employee can reject a pending closure, reverting the account to Active', async () => {
+      const { account, employee } = await setupPendingClosure();
+      const res = await request(app)
+        .post(`/api/accounts/${account._id}/reject-closure`)
+        .set('Authorization', `Bearer ${employee.token}`);
+      expect(res.status).toBe(200);
+      expect(res.body.status).toBe('Active');
+    });
+  });
 });

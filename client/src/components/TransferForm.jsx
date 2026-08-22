@@ -1,5 +1,7 @@
 import { useState } from 'react';
 import api from '../api/axios';
+import Button from './ui/Button.jsx';
+import Icon from './ui/Icon.jsx';
 
 export default function TransferForm({ accounts, onTransferComplete }) {
   const [fromAccount, setFromAccount] = useState(accounts[0]?._id || '');
@@ -39,9 +41,17 @@ export default function TransferForm({ accounts, onTransferComplete }) {
 
   return (
     <form className="card" onSubmit={handleSubmit}>
-      <h3 style={{ marginTop: 0 }}>Transfer Funds</h3>
-      {error && <p className="error-text">{error}</p>}
-      {success && <p className="success-text">{success}</p>}
+      <p className="form-lede">Send money to another account by account number.</p>
+      {error && (
+        <p className="error-text">
+          <Icon name="alertCircle" size={16} /> {error}
+        </p>
+      )}
+      {success && (
+        <p className="success-text">
+          <Icon name="checkCircle" size={16} /> {success}
+        </p>
+      )}
       <div className="field">
         <label htmlFor="fromAccount">From account</label>
         <select id="fromAccount" value={fromAccount} onChange={(e) => setFromAccount(e.target.value)} required>
@@ -80,9 +90,15 @@ export default function TransferForm({ accounts, onTransferComplete }) {
         <label htmlFor="description">Note (optional)</label>
         <input id="description" value={description} onChange={(e) => setDescription(e.target.value)} />
       </div>
-      <button className="btn" type="submit" disabled={submitting || !accounts.length}>
+      <Button
+        type="submit"
+        variant="primary"
+        className="btn-block"
+        loading={submitting}
+        disabled={submitting || !accounts.length}
+      >
         {submitting ? 'Transferring...' : 'Transfer'}
-      </button>
+      </Button>
     </form>
   );
 }

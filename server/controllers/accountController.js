@@ -67,4 +67,37 @@ async function requestClosure(req, res) {
   res.json(account);
 }
 
-module.exports = { createAccount, getMyAccounts, getAccountById, listAllAccounts, requestClosure };
+async function approveClosure(req, res) {
+  const account = await Account.findById(req.params.id);
+  if (!account) return res.status(404).json({ message: 'Account not found' });
+  if (account.status !== 'PendingClosure') {
+    return res.status(400).json({ message: 'Account is not pending closure' });
+  }
+  if (account.balance > 0) {
+    return res.status(400).json({ message: 'Account balance must be zero before closure' });
+  }
+  account.status = 'Closed';
+  await account.save();
+  res.json(account);
+}
+
+async function rejectClosure(req, res) {
+  const account = await Account.findById(req.params.id);
+  if (!account) return res.status(404).json({ message: 'Account not found' });
+  if (account.status !== 'PendingClosure') {
+    return res.status(400).json({ message: 'Account is not pending closure' });
+  }
+  account.status = 'Active';
+  await account.save();
+  res.json(account);
+}
+
+module.exports = {
+  createAccount,
+  getMyAccounts,
+  getAccountById,
+  listAllAccounts,
+  requestClosure,
+  approveClosure,
+  rejectClosure,
+};
