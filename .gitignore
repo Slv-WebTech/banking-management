@@ -1,6 +1,30 @@
+# Dependencies
 node_modules/
+
+# Build output
 dist/
 build/
+coverage/
+.vite/
+
+# Secrets and local config (only *.env.example files are tracked)
 .env
+.env.*
+!.env.example
+*.pem
+*.key
+
+# Logs and local data
 *.log
+npm-debug.log*
+logs/
+mongo-data/
+data/db/
+*.local
+
+# OS / editor / tooling
 .DS_Store
+Thumbs.db
+.idea/
+.vscode/
+.claude/

@@ -23,6 +23,8 @@ This `/docs` directory is the durable knowledge base for this project — it sho
 | [TESTING.md](TESTING.md) | The automated test suite (what it covers, how to run it), plus the manual-verification history that seeded it |
 | [DEPLOYMENT.md](DEPLOYMENT.md) | Planned deployment targets and what's needed to get there (not deployed yet) |
 | [CHANGELOG.md](CHANGELOG.md) | Dated history of what changed and why |
+| [QA-REPORT.md](QA-REPORT.md) | Senior-QA report (2026-11-20): live test results, security/performance findings, what was fixed, what is still open and why |
+| [assets/](assets/) | Brand assets: logo, banner, social-preview image (SVG + PNG) |
 | [INTERVIEW_GUIDE.md](INTERVIEW_GUIDE.md) | How to talk about this project in an interview — honestly scoped to what's actually been built/tested |
 
 ## Maintenance Rule

@@ -16,7 +16,7 @@ Backlog only — nothing here should be implemented until explicitly requested. 
 - **Notifications** (in-app at minimum; email/SMS is a bigger lift) for transfer success/failure, loan approval, low balance. Complexity: medium — needs a delivery mechanism decision (poll vs. WebSocket vs. email provider).
 - **"Update profile"** for customers (mentioned in the original brief, not built). Complexity: low.
 - **Human-searchable transaction history** — search by counterparty account number or free-text description instead of only the internal `reference`. Complexity: low.
-- **Admin user-list pagination** — currently unbounded `find()`. Complexity: low, same pattern as accounts/transactions already use.
+- ~~Admin user-list pagination~~ — shipped 2026-11-20 (`?page`/`?limit`, `X-Total-Count`); UI paging controls (rather than the truncation notice) remain a nice-to-have.
 - **Deployment** (Vercel + Render/Railway + Atlas per the brief). Complexity: medium — needs real accounts/credentials from the user, env var management, and CORS/domain config. Explicitly blocked until the user decides to pursue it.
 - **Dependency vulnerability fixes** — `client/`'s 4 npm audit findings (react-router-dom, esbuild/vite). Complexity: low to medium depending on whether a breaking Vite major upgrade is acceptable.
 

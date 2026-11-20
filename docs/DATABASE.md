@@ -1,6 +1,6 @@
 # Database
 
-MongoDB via Mongoose 8. Three collections, defined in `server/models/`.
+MongoDB via Mongoose 8. Four collections, defined in `server/models/` (`Loan` added 2026-08-22).
 
 ## `User` (`models/User.js`)
 | Field | Type | Notes |
@@ -32,7 +32,7 @@ Ledger-entry model — **one document per account per transfer**, not one docume
 |---|---|---|
 | `account` | ObjectId → `Account` | required, indexed — the account this ledger entry belongs to |
 | `counterpartyAccount` | ObjectId → `Account` | the other side of the transfer |
-| `type` | enum | `transfer-debit` \| `transfer-credit` \| `deposit` \| `withdrawal` (`deposit` implemented 2026-08-16 via `POST /transactions/deposit`; `withdrawal` still unused — no endpoint creates it) |
+| `type` | enum | `transfer-debit` \| `transfer-credit` \| `deposit` \| `withdrawal` \| `loan-disbursement` \| `loan-repayment` (`deposit` implemented 2026-08-16; `loan-disbursement`/`loan-repayment` implemented 2026-08-22 via the loan module below; `withdrawal` still unused — no endpoint creates it) |
 | `amount` | Number | required, `min: 0` |
 | `balanceAfter` | Number | required — this account's balance immediately after this entry |
 | `status` | enum | `completed` (default) \| `failed` \| `pending` (only `completed` is currently produced by any code path) |
@@ -41,17 +41,40 @@ Ledger-entry model — **one document per account per transfer**, not one docume
 | `description` | String | optional |
 | `timestamps` | — | |
 
+## `Loan` (`models/Loan.js`, added 2026-08-22)
+| Field | Type | Notes |
+|---|---|---|
+| `borrower` | ObjectId → `User` | required, indexed |
+| `disbursalAccount` | ObjectId → `Account` | required — where the principal is credited, and the account repayment defaults reference (repayment itself can come from any of the borrower's `Active` accounts) |
+| `principal` | Number | required, `min: 1` |
+| `termMonths` | Number | required, 1-360 |
+| `purpose` | String | optional, trimmed |
+| `status` | enum | `Pending` (default) \| `Approved` \| `Rejected` \| `Closed`, indexed |
+| `annualInterestRate` | Number | set by staff at approval time (0-100), absent while `Pending` |
+| `emiAmount` | Number | computed at approval via `utils/loanSchedule.js#calculateEmi`, absent while `Pending` |
+| `schedule` | Array of subdocuments | one per installment: `installmentNumber`, `dueDate`, `principal`, `interest`, `amount`, `status` (`Due`\|`Paid`), `paidAt` — generated in full at approval time, embedded (not a separate collection), `_id: false` on the subdocument schema |
+| `reviewedBy` | ObjectId → `User` | the staff member who approved/rejected |
+| `reviewedAt` | Date | |
+| `reviewNote` | String | optional, set on rejection |
+| `timestamps` | — | `createdAt`, `updatedAt` |
+
+The schedule is a reducing-balance (not flat-rate) amortization table — see `server/utils/loanSchedule.js` and its 13-test unit suite (`server/tests/loanSchedule.test.js`) for the math, and [ARCHITECTURE.md](ARCHITECTURE.md)'s "Data Flow: Loan Application" for the full request lifecycle.
+
 ## Relationships
 - `User 1 — N Account` (`Account.owner`)
 - `Account 1 — N Transaction` (`Transaction.account`)
 - `Transaction.counterpartyAccount` is a same-collection reference to the other `Account` in the transfer (not the other `Transaction`).
+- `User 1 — N Loan` (`Loan.borrower`), `Account 1 — N Loan` (`Loan.disbursalAccount`), `User 1 — N Loan` (`Loan.reviewedBy`, for staff).
 
 ## Indexes
 - `User.email` — unique
 - `Account.accountNumber` — unique
 - `Transaction.account`, `Transaction.reference`, `Transaction.clientRef` — single-field indexes for the query patterns used in `transactionController.js` (`buildHistoryFilter`, clientRef idempotency lookup)
+- `Account.owner`, `Account.status` *(2026-11-20)* — "my accounts" lookups on every customer request and the staff closure queue
+- `Transaction.createdAt` (descending) *(2026-11-20)* — staff-wide history sort
+- `Loan.borrower`, `Loan.status` — single-field indexes for `GET /loans/mine` and the staff `GET /loans/all?status=Pending` queue query
 
-No compound indexes yet. If transaction history queries become slow at scale, a compound index on `{ account: 1, createdAt: -1 }` is the first candidate (matches the `find({account: ...}).sort({createdAt: -1})` pattern used by both history endpoints).
+Compound indexes: `Transaction { account: 1, createdAt: -1 }` (per-account history) and the partial unique `Transaction { account: 1, clientRef: 1 }` (race-safe idempotency). **Money representation**: `Account.balance` is a double rounded to cents inside every atomic update (`adjustBalance` in `server/utils/money.js`); integer minor units would be the cleaner long-term model.
 
 ## Consistency Model
 No multi-document transactions (would require a MongoDB replica set). Balance safety comes from atomic single-document conditional updates (`findOneAndUpdate` with a `balance >= amount` filter) plus a compensating refund if the second leg of a transfer fails. This is documented as a deliberate trade-off in [DECISIONS.md](DECISIONS.md), not an oversight — but it means a crash between the debit and credit steps (after the debit succeeds, before the credit is attempted) is not automatically rolled back the way a real ACID transaction would be. This is tracked in [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md).

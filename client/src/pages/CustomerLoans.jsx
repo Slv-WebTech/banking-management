@@ -5,6 +5,8 @@ import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import { SkeletonCards, SkeletonRows } from '../components/ui/Skeleton.jsx';
+import { formatMoney } from '../utils/formatMoney';
+import { errorMessage } from '../utils/apiError';
 
 const STATUS_TONE = {
   Pending: 'warning',
@@ -30,7 +32,7 @@ function LoanCard({ loan, onPay, payingId }) {
           </span>
           <div>
             <h3>
-              ₹{loan.principal.toLocaleString('en-IN')} · {loan.termMonths} mo
+              ₹{formatMoney(loan.principal)} · {loan.termMonths} mo
             </h3>
           </div>
         </div>
@@ -48,13 +50,13 @@ function LoanCard({ loan, onPay, payingId }) {
       )}
 
       {loan.status === 'Rejected' && (
-        <p className="error-text">
+        <p className="error-text" role="alert">
           <Icon name="alertCircle" size={16} /> {loan.reviewNote || 'This application was rejected.'}
         </p>
       )}
 
       {loan.status === 'Closed' && (
-        <p className="success-text">
+        <p className="success-text" role="status">
           <Icon name="checkCircle" size={16} /> Fully repaid.
         </p>
       )}
@@ -63,7 +65,7 @@ function LoanCard({ loan, onPay, payingId }) {
         <>
           <div className="stat-grid" style={{ marginBottom: 'var(--space-6)' }}>
             <div className="stat-card">
-              <div className="value">₹{loan.emiAmount?.toLocaleString('en-IN')}</div>
+              <div className="value">₹{formatMoney(loan.emiAmount)}</div>
               <div className="label">Monthly EMI</div>
             </div>
             <div className="stat-card">
@@ -72,7 +74,7 @@ function LoanCard({ loan, onPay, payingId }) {
             </div>
             {dueInstallment && (
               <div className="stat-card">
-                <div className="value">₹{dueInstallment.amount.toLocaleString('en-IN')}</div>
+                <div className="value">₹{formatMoney(dueInstallment.amount)}</div>
                 <div className="label">Next EMI Due</div>
               </div>
             )}
@@ -107,9 +109,9 @@ function LoanCard({ loan, onPay, payingId }) {
                     <tr key={installment.installmentNumber}>
                       <td className="cell-muted">{installment.installmentNumber}</td>
                       <td className="cell-muted">{new Date(installment.dueDate).toLocaleDateString()}</td>
-                      <td>₹{installment.principal.toLocaleString('en-IN')}</td>
-                      <td>₹{installment.interest.toLocaleString('en-IN')}</td>
-                      <td>₹{installment.amount.toLocaleString('en-IN')}</td>
+                      <td>₹{formatMoney(installment.principal)}</td>
+                      <td>₹{formatMoney(installment.interest)}</td>
+                      <td>₹{formatMoney(installment.amount)}</td>
                       <td>
                         <Badge tone={installment.status === 'Paid' ? 'success' : 'neutral'}>{installment.status}</Badge>
                       </td>
@@ -172,7 +174,7 @@ export default function CustomerLoans() {
       setForm((f) => ({ ...f, principal: '', termMonths: '', purpose: '' }));
       await loadLoans();
     } catch (err) {
-      setApplyError(err.response?.data?.message || 'Loan application failed');
+      setApplyError(errorMessage(err, 'Loan application failed'));
     } finally {
       setApplying(false);
     }
@@ -211,12 +213,12 @@ export default function CustomerLoans() {
       <form className="card" onSubmit={handleApply}>
         <p className="form-lede">Apply for a new loan against one of your active accounts.</p>
         {applyError && (
-          <p className="error-text">
+          <p className="error-text" role="alert">
             <Icon name="alertCircle" size={16} /> {applyError}
           </p>
         )}
         {applySuccess && (
-          <p className="success-text">
+          <p className="success-text" role="status">
             <Icon name="checkCircle" size={16} /> {applySuccess}
           </p>
         )}
@@ -241,7 +243,7 @@ export default function CustomerLoans() {
               >
                 {accounts.map((acc) => (
                   <option key={acc._id} value={acc._id}>
-                    {acc.accountNumber} (₹{acc.balance.toLocaleString('en-IN')})
+                    {acc.accountNumber} (₹{formatMoney(acc.balance)})
                   </option>
                 ))}
               </select>

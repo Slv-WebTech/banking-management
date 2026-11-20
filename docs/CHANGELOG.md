@@ -2,6 +2,21 @@
 
 Human-readable development history. Newest first.
 
+## 2026-11-20 — Senior QA pass, hardening, Verdant Bank identity
+**Feature/fix**: A full QA pass (live in Chrome for all three roles, black-box API battery, 60k-transaction performance run) and the fixes it motivated, followed by documentation, branding and repository polish. Full evidence: [QA-REPORT.md](QA-REPORT.md).
+
+**Security / correctness**: balance float drift fixed with `adjustBalance` (round-to-cents inside each atomic update); malformed ids/typed fields/dates return 400 instead of 500; login timing oracle removed (dummy bcrypt compare); stack traces only when `NODE_ENV=development`; passwords capped at 72 (bcrypt limit) and typed; `parseAmount` rejects arrays/booleans; month-end loan due dates clamp instead of overflowing; transfer/deposit/loan limiters keyed per user; max 3 pending loans per borrower; clearer failure messages.
+
+**Performance**: indexes on `accounts.owner`, `accounts.status`, `transactions.createdAt`; optional `?page`/`?limit` + `X-Total-Count` on `/accounts/all` and `/admin/users` (default cap 100); 300 ms debounced searches with per-list refetch; role screens lazy-loaded (main bundle 248 kB, 80.8 kB gzip).
+
+**UX / accessibility**: customer "Request closure" button; error banners for staff/admin actions; search icon no longer overlaps placeholder; 5.4:1 muted-text contrast; skip link; accessible names, `role="alert"`; 44 px touch targets and pinned action columns on small screens; `₹5,000.50` formatting; no full-page skeleton on every keystroke; loan-type filter options; dead status filter removed.
+
+**Tests**: server 77 → 108 (`qa.test.js`), client 21 → 28 (`utils.test.jsx`). Both suites and the production build pass.
+
+**Identity & repo**: tagline "Calm money, clearly kept."; SVG logo/banner/favicon and a 1280×640 social-preview image in `docs/assets/` and `client/public/`; Open Graph metadata in `client/index.html`; rewritten README; PR/issue templates, CODEOWNERS and a branch ruleset on `main`.
+
+**Known open items**: self-service deposit mints money (product decision, QA B5); no loan maker-checker policy (B7); deep pagination/regex search at ~1M rows (P3). No licence file has been chosen yet.
+
 ## 2026-08-22 (later) — Frontend for closure approval, transaction search, and loan management
 **Feature/fix**: Completes the frontend half of the three backend features shipped earlier the same day (see the entry directly below). All three are now usable end-to-end through the UI.
 

@@ -1,6 +1,7 @@
 import { useState } from 'react';
 import Icon from './ui/Icon.jsx';
 import Badge from './ui/Badge.jsx';
+import { formatMoney } from '../utils/formatMoney';
 
 const badgeTone = {
   Active: 'success',
@@ -8,7 +9,7 @@ const badgeTone = {
   Closed: 'danger',
 };
 
-export default function AccountCard({ account }) {
+export default function AccountCard({ account, onRequestClosure }) {
   const [revealed, setRevealed] = useState(false);
   const [copied, setCopied] = useState(false);
   const isSavings = account.accountType === 'Savings';
@@ -38,8 +39,20 @@ export default function AccountCard({ account }) {
 
       <div className="account-card-balance">
         <div className="account-card-balance-label">Available balance</div>
-        <div className="account-card-balance-value">₹{account.balance.toLocaleString('en-IN')}</div>
+        <div className="account-card-balance-value">₹{formatMoney(account.balance)}</div>
       </div>
+
+      {onRequestClosure && account.status === 'Active' && (
+        <button
+          type="button"
+          className="account-card-link-btn"
+          disabled={account.balance > 0}
+          title={account.balance > 0 ? 'Withdraw or transfer the full balance before requesting closure' : undefined}
+          onClick={() => onRequestClosure(account)}
+        >
+          {account.balance > 0 ? 'Closure needs a zero balance' : 'Request closure'}
+        </button>
+      )}
 
       <div className="account-card-bottom">
         <span className="account-card-number">

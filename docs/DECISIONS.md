@@ -4,6 +4,23 @@ Architecture Decision Record log. Newest first.
 
 ---
 
+**Decision**: Keep money as doubles but round to cents inside every atomic balance update (`adjustBalance`), instead of migrating to integer minor units now.
+**Date**: 2026-11-20
+**Context**: QA found drift (ten 0.10 deposits gave 51.000000000000014), which breaks the exact `balance: 0` closure check and `$gte` debit check.
+**Options considered**: (1) integer minor units — cleanest, but a schema/data migration touching every read and write; (2) Decimal128 — exact, but awkward in JS and the pipeline maths; (3) round inside the update with a pipeline (`$round` of `$add`) — one small helper, atomic, no migration.
+**Decision rationale**: option 3 removes the observed bug with the smallest blast radius while keeping atomicity.
+**Consequences**: pipeline updates are used for all balance changes; legacy drifted values are not repaired. Integer minor units remain the recommended long-term fix ([TECHNICAL_DEBT.md](TECHNICAL_DEBT.md) #11).
+
+---
+
+**Decision**: Rate-limit money-moving routes per authenticated user; keep auth routes per IP. Staff lists stay bare arrays with `X-Total-Count`.
+**Date**: 2026-11-20
+**Context**: A per-IP bucket made everyone behind one proxy/NAT share 10 requests a minute. Paginating staff lists by wrapping them in `{ items, total }` would break existing clients and tests.
+**Decision rationale**: keying by `req.user._id` is safe because limiters run after `protect()`; login/register have no user yet, so IP stays. Pagination is optional (`?page`/`?limit`, default cap 100) with the total in a header exposed through CORS.
+**Consequences**: backwards compatible; the UI shows a truncation notice instead of page controls.
+
+---
+
 **Decision**: Loan interest rate is set by staff at approval time, not chosen by the customer at application time.
 **Date**: 2026-08-22
 **Context**: Building the loan management module raised a question the original brief didn't specify: who decides the interest rate on an approved loan?

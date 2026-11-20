@@ -1,5 +1,6 @@
 import Icon from './ui/Icon.jsx';
 import Badge from './ui/Badge.jsx';
+import { formatMoney } from '../utils/formatMoney';
 
 const TYPE_LABELS = {
   'transfer-credit': 'Credit',
@@ -50,25 +51,19 @@ export default function TransactionTable({
           <Icon name="search" size={16} className="input-icon" />
           <input
             type="text"
+            aria-label="Search transactions"
             placeholder="Search by reference, account, or note..."
             value={filters.search}
             onChange={(e) => onFilterChange({ ...filters, search: e.target.value })}
           />
         </div>
-        <select value={filters.type} onChange={(e) => onFilterChange({ ...filters, type: e.target.value })}>
+        <select aria-label="Filter by type" value={filters.type} onChange={(e) => onFilterChange({ ...filters, type: e.target.value })}>
           <option value="">All types</option>
           <option value="transfer-debit">Debit</option>
           <option value="transfer-credit">Credit</option>
           <option value="deposit">Deposit</option>
-        </select>
-        <select
-          value={filters.status}
-          onChange={(e) => onFilterChange({ ...filters, status: e.target.value })}
-        >
-          <option value="">All statuses</option>
-          <option value="completed">Completed</option>
-          <option value="failed">Failed</option>
-          <option value="pending">Pending</option>
+          <option value="loan-disbursement">Loan disbursement</option>
+          <option value="loan-repayment">Loan repayment</option>
         </select>
       </div>
       <div className="table-wrap">
@@ -106,11 +101,11 @@ export default function TransactionTable({
                   />{' '}
                   {TYPE_LABELS[tx.type] || tx.type}
                 </td>
-                <td className={amountClass(tx.type)}>₹{tx.amount.toLocaleString('en-IN')}</td>
+                <td className={amountClass(tx.type)}>₹{formatMoney(tx.amount)}</td>
                 <td>
                   <Badge tone={STATUS_TONE[tx.status] || 'neutral'}>{tx.status}</Badge>
                 </td>
-                <td>₹{tx.balanceAfter.toLocaleString('en-IN')}</td>
+                <td>₹{formatMoney(tx.balanceAfter)}</td>
               </tr>
             ))}
           </tbody>

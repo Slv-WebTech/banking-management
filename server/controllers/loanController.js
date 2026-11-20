@@ -3,10 +3,16 @@ const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
 const Loan = require('../models/Loan');
 const { buildAmortizationSchedule } = require('../utils/loanSchedule');
+const { adjustBalance, parseAmount } = require('../utils/money');
+
+const MAX_PENDING_LOANS = Number(process.env.MAX_PENDING_LOANS) || 3;
 
 async function applyForLoan(req, res) {
   const { disbursalAccount, principal, termMonths, purpose } = req.body;
-  const numericPrincipal = Number(principal);
+  const numericPrincipal = parseAmount(principal);
+  if (!numericPrincipal) {
+    return res.status(400).json({ message: 'principal must be a positive amount with at most 2 decimals' });
+  }
   const numericTerm = Number(termMonths);
 
   const account = await Account.findById(disbursalAccount);
@@ -15,6 +21,12 @@ async function applyForLoan(req, res) {
   }
   if (account.status !== 'Active') {
     return res.status(400).json({ message: 'Disbursal account is not active' });
+  }
+  const pendingCount = await Loan.countDocuments({ borrower: req.user._id, status: 'Pending' });
+  if (pendingCount >= MAX_PENDING_LOANS) {
+    return res.status(400).json({
+      message: `You already have ${pendingCount} loan applications awaiting review (maximum ${MAX_PENDING_LOANS})`,
+    });
   }
 
   const loan = await Loan.create({
@@ -72,37 +84,66 @@ async function approveLoan(req, res) {
   if (loan.status !== 'Pending') {
     return res.status(400).json({ message: 'Only pending loans can be approved' });
   }
-
-  const disbursed = await Account.findOneAndUpdate(
-    { _id: loan.disbursalAccount, status: 'Active' },
-    { $inc: { balance: loan.principal } },
-    { new: true }
-  );
-  if (!disbursed) {
-    return res.status(400).json({ message: 'Disbursal account is not active' });
+  if (loan.borrower.toString() === req.user._id.toString()) {
+    return res.status(403).json({ message: 'You cannot review your own loan' });
   }
 
   const { emi, schedule } = buildAmortizationSchedule(loan.principal, numericRate, loan.termMonths);
 
-  const reference = new mongoose.Types.ObjectId().toString();
-  await Transaction.create({
-    account: disbursed._id,
-    type: 'loan-disbursement',
-    amount: loan.principal,
-    balanceAfter: disbursed.balance,
-    reference,
-    description: `Loan disbursement (${loan._id})`,
-  });
+  // Atomically claim the loan (Pending -> Approved) so two concurrent
+  // approvals can never both disburse.
+  const claimed = await Loan.findOneAndUpdate(
+    { _id: loan._id, status: 'Pending' },
+    {
+      status: 'Approved',
+      annualInterestRate: numericRate,
+      emiAmount: emi,
+      schedule,
+      reviewedBy: req.user._id,
+      reviewedAt: new Date(),
+    },
+    { new: true }
+  );
+  if (!claimed) {
+    return res.status(409).json({ message: 'Loan was already reviewed' });
+  }
 
-  loan.status = 'Approved';
-  loan.annualInterestRate = numericRate;
-  loan.emiAmount = emi;
-  loan.schedule = schedule;
-  loan.reviewedBy = req.user._id;
-  loan.reviewedAt = new Date();
-  await loan.save();
+  const revertClaim = () =>
+    Loan.updateOne(
+      { _id: loan._id },
+      {
+        status: 'Pending',
+        $unset: { annualInterestRate: 1, emiAmount: 1, reviewedBy: 1, reviewedAt: 1 },
+        schedule: [],
+      }
+    );
 
-  res.json(loan);
+  const disbursed = await Account.findOneAndUpdate(
+    { _id: loan.disbursalAccount, status: 'Active' },
+    adjustBalance(loan.principal),
+    { new: true }
+  );
+  if (!disbursed) {
+    await revertClaim();
+    return res.status(400).json({ message: 'Disbursal account is not active' });
+  }
+
+  try {
+    await Transaction.create({
+      account: disbursed._id,
+      type: 'loan-disbursement',
+      amount: loan.principal,
+      balanceAfter: disbursed.balance,
+      reference: new mongoose.Types.ObjectId().toString(),
+      description: `Loan disbursement (${loan._id})`,
+    });
+  } catch (err) {
+    await Account.findByIdAndUpdate(disbursed._id, adjustBalance(-loan.principal));
+    await revertClaim();
+    throw err;
+  }
+
+  res.json(claimed);
 }
 
 async function rejectLoan(req, res) {
@@ -113,14 +154,18 @@ async function rejectLoan(req, res) {
   if (loan.status !== 'Pending') {
     return res.status(400).json({ message: 'Only pending loans can be rejected' });
   }
+  if (loan.borrower.toString() === req.user._id.toString()) {
+    return res.status(403).json({ message: 'You cannot review your own loan' });
+  }
 
-  loan.status = 'Rejected';
-  loan.reviewedBy = req.user._id;
-  loan.reviewedAt = new Date();
-  loan.reviewNote = reviewNote || undefined;
-  await loan.save();
+  const rejected = await Loan.findOneAndUpdate(
+    { _id: loan._id, status: 'Pending' },
+    { status: 'Rejected', reviewedBy: req.user._id, reviewedAt: new Date(), reviewNote: reviewNote || undefined },
+    { new: true }
+  );
+  if (!rejected) return res.status(409).json({ message: 'Loan was already reviewed' });
 
-  res.json(loan);
+  res.json(rejected);
 }
 
 async function payInstallment(req, res) {
@@ -152,33 +197,63 @@ async function payInstallment(req, res) {
     }
   }
 
+  // Atomically mark the installment Paid first, so a concurrent request for the
+  // same installment cannot also debit the account.
+  const number = dueInstallment.installmentNumber;
+  const claimed = await Loan.findOneAndUpdate(
+    { _id: loan._id, status: 'Approved', schedule: { $elemMatch: { installmentNumber: number, status: 'Due' } } },
+    { $set: { 'schedule.$.status': 'Paid', 'schedule.$.paidAt': new Date() } },
+    { new: true }
+  );
+  if (!claimed) {
+    return res.status(409).json({ message: 'Installment was already paid' });
+  }
+
+  const unclaim = () =>
+    Loan.updateOne(
+      { _id: loan._id, 'schedule.installmentNumber': number },
+      { $set: { 'schedule.$.status': 'Due' }, $unset: { 'schedule.$.paidAt': 1 } }
+    );
+
   const debited = await Account.findOneAndUpdate(
     { _id: account._id, status: 'Active', balance: { $gte: dueInstallment.amount } },
-    { $inc: { balance: -dueInstallment.amount } },
+    adjustBalance(-dueInstallment.amount),
     { new: true }
   );
   if (!debited) {
-    return res.status(400).json({ message: 'Insufficient balance or inactive account' });
+    await unclaim();
+    return res
+      .status(400)
+      .json({ message: account.status !== 'Active' ? 'Payment account is not active' : 'Insufficient balance' });
   }
 
-  const reference = new mongoose.Types.ObjectId().toString();
-  const transaction = await Transaction.create({
-    account: debited._id,
-    type: 'loan-repayment',
-    amount: dueInstallment.amount,
-    balanceAfter: debited.balance,
-    reference,
-    clientRef,
-    description: `Loan EMI #${dueInstallment.installmentNumber} (${loan._id})`,
-  });
+  let transaction;
+  try {
+    transaction = await Transaction.create({
+      account: debited._id,
+      type: 'loan-repayment',
+      amount: dueInstallment.amount,
+      balanceAfter: debited.balance,
+      reference: new mongoose.Types.ObjectId().toString(),
+      clientRef,
+      description: `Loan EMI #${number} (${loan._id})`,
+    });
+  } catch (err) {
+    await Account.findByIdAndUpdate(debited._id, adjustBalance(dueInstallment.amount));
+    await unclaim();
+    if (err.code === 11000 && clientRef) {
+      const existing = await Transaction.findOne({ clientRef, account: account._id });
+      if (existing) return res.status(200).json({ message: 'Payment already processed', transaction: existing, loan });
+    }
+    throw err;
+  }
 
-  dueInstallment.status = 'Paid';
-  dueInstallment.paidAt = new Date();
-  const stillDue = loan.schedule.some((installment) => installment.status === 'Due');
-  if (!stillDue) loan.status = 'Closed';
-  await loan.save();
+  if (!claimed.schedule.some((installment) => installment.status === 'Due')) {
+    claimed.status = 'Closed';
+    await claimed.save();
+  }
 
-  res.status(201).json({ message: 'Installment paid', transaction, loan });
+  res.status(201).json({ message: 'Installment paid', transaction, loan: claimed });
 }
 
 module.exports = {

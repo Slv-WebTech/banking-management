@@ -1,5 +1,7 @@
 const Account = require('../models/Account');
+const escapeRegex = require('../utils/escapeRegex');
 const generateAccountNumber = require('../utils/generateAccountNumber');
+const { parsePaging } = require('../utils/pagination');
 
 async function createUniqueAccountNumber() {
   for (let attempt = 0; attempt < 5; attempt += 1) {
@@ -44,12 +46,18 @@ async function getAccountById(req, res) {
 }
 
 async function listAllAccounts(req, res) {
-  const { search } = req.query;
+  const { search, status } = req.query;
   const filter = {};
+  if (typeof status === 'string' && ['Active', 'PendingClosure', 'Closed'].includes(status)) filter.status = status;
   if (search) {
-    filter.accountNumber = { $regex: search, $options: 'i' };
+    filter.accountNumber = { $regex: escapeRegex(search), $options: 'i' };
   }
-  const accounts = await Account.find(filter).populate('owner', 'name email').sort({ createdAt: -1 });
+  const { skip, limit } = parsePaging(req.query);
+  const [accounts, total] = await Promise.all([
+    Account.find(filter).populate('owner', 'name email').sort({ createdAt: -1 }).skip(skip).limit(limit),
+    Account.countDocuments(filter),
+  ]);
+  res.set('X-Total-Count', String(total));
   res.json(accounts);
 }
 
@@ -59,12 +67,20 @@ async function requestClosure(req, res) {
   if (account.owner.toString() !== req.user._id.toString()) {
     return res.status(403).json({ message: 'Forbidden' });
   }
+  if (account.status !== 'Active') {
+    return res.status(400).json({ message: 'Only active accounts can be closed' });
+  }
   if (account.balance > 0) {
     return res.status(400).json({ message: 'Account balance must be zero before closure' });
   }
-  account.status = 'PendingClosure';
-  await account.save();
-  res.json(account);
+  // Atomic: re-check status and zero balance at write time.
+  const updated = await Account.findOneAndUpdate(
+    { _id: account._id, status: 'Active', balance: 0 },
+    { status: 'PendingClosure' },
+    { new: true }
+  );
+  if (!updated) return res.status(409).json({ message: 'Account changed, please retry' });
+  res.json(updated);
 }
 
 async function approveClosure(req, res) {
@@ -76,9 +92,16 @@ async function approveClosure(req, res) {
   if (account.balance > 0) {
     return res.status(400).json({ message: 'Account balance must be zero before closure' });
   }
-  account.status = 'Closed';
-  await account.save();
-  res.json(account);
+  if (account.owner.toString() === req.user._id.toString()) {
+    return res.status(403).json({ message: 'You cannot approve closure of your own account' });
+  }
+  const closed = await Account.findOneAndUpdate(
+    { _id: account._id, status: 'PendingClosure', balance: 0 },
+    { status: 'Closed' },
+    { new: true }
+  );
+  if (!closed) return res.status(409).json({ message: 'Account changed, please retry' });
+  res.json(closed);
 }
 
 async function rejectClosure(req, res) {
@@ -87,9 +110,13 @@ async function rejectClosure(req, res) {
   if (account.status !== 'PendingClosure') {
     return res.status(400).json({ message: 'Account is not pending closure' });
   }
-  account.status = 'Active';
-  await account.save();
-  res.json(account);
+  const reopened = await Account.findOneAndUpdate(
+    { _id: account._id, status: 'PendingClosure' },
+    { status: 'Active' },
+    { new: true }
+  );
+  if (!reopened) return res.status(409).json({ message: 'Account changed, please retry' });
+  res.json(reopened);
 }
 
 module.exports = {
