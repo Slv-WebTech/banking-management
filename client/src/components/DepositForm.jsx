@@ -2,6 +2,8 @@ import { useState } from 'react';
 import api from '../api/axios';
 import Button from './ui/Button.jsx';
 import Icon from './ui/Icon.jsx';
+import { formatMoney } from '../utils/formatMoney';
+import { errorMessage } from '../utils/apiError';
 
 export default function DepositForm({ accounts, onDepositComplete }) {
   const [account, setAccount] = useState(accounts[0]?._id || '');
@@ -30,7 +32,7 @@ export default function DepositForm({ accounts, onDepositComplete }) {
       setDescription('');
       onDepositComplete?.();
     } catch (err) {
-      setError(err.response?.data?.message || 'Deposit failed');
+      setError(errorMessage(err, 'Deposit failed'));
     } finally {
       setSubmitting(false);
     }
@@ -40,12 +42,12 @@ export default function DepositForm({ accounts, onDepositComplete }) {
     <form className="card" onSubmit={handleSubmit}>
       <p className="form-lede">Add funds to one of your accounts.</p>
       {error && (
-        <p className="error-text">
+        <p className="error-text" role="alert">
           <Icon name="alertCircle" size={16} /> {error}
         </p>
       )}
       {success && (
-        <p className="success-text">
+        <p className="success-text" role="status">
           <Icon name="checkCircle" size={16} /> {success}
         </p>
       )}
@@ -54,7 +56,7 @@ export default function DepositForm({ accounts, onDepositComplete }) {
         <select id="depositAccount" value={account} onChange={(e) => setAccount(e.target.value)} required>
           {accounts.map((acc) => (
             <option key={acc._id} value={acc._id}>
-              {acc.accountNumber} (₹{acc.balance.toLocaleString('en-IN')})
+              {acc.accountNumber} (₹{formatMoney(acc.balance)})
             </option>
           ))}
         </select>

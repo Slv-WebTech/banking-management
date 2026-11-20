@@ -2,6 +2,8 @@ import { useState } from 'react';
 import api from '../api/axios';
 import Button from './ui/Button.jsx';
 import Icon from './ui/Icon.jsx';
+import { formatMoney } from '../utils/formatMoney';
+import { errorMessage } from '../utils/apiError';
 
 export default function TransferForm({ accounts, onTransferComplete }) {
   const [fromAccount, setFromAccount] = useState(accounts[0]?._id || '');
@@ -33,7 +35,7 @@ export default function TransferForm({ accounts, onTransferComplete }) {
       setDescription('');
       onTransferComplete?.();
     } catch (err) {
-      setError(err.response?.data?.message || 'Transfer failed');
+      setError(errorMessage(err, 'Transfer failed'));
     } finally {
       setSubmitting(false);
     }
@@ -43,12 +45,12 @@ export default function TransferForm({ accounts, onTransferComplete }) {
     <form className="card" onSubmit={handleSubmit}>
       <p className="form-lede">Send money to another account by account number.</p>
       {error && (
-        <p className="error-text">
+        <p className="error-text" role="alert">
           <Icon name="alertCircle" size={16} /> {error}
         </p>
       )}
       {success && (
-        <p className="success-text">
+        <p className="success-text" role="status">
           <Icon name="checkCircle" size={16} /> {success}
         </p>
       )}
@@ -57,7 +59,7 @@ export default function TransferForm({ accounts, onTransferComplete }) {
         <select id="fromAccount" value={fromAccount} onChange={(e) => setFromAccount(e.target.value)} required>
           {accounts.map((acc) => (
             <option key={acc._id} value={acc._id}>
-              {acc.accountNumber} (₹{acc.balance.toLocaleString('en-IN')})
+              {acc.accountNumber} (₹{formatMoney(acc.balance)})
             </option>
           ))}
         </select>

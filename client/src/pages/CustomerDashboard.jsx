@@ -1,4 +1,4 @@
-import { useCallback, useEffect, useState } from 'react';
+import { useCallback, useEffect, useRef, useState } from 'react';
 import api from '../api/axios';
 import AccountCard from '../components/AccountCard.jsx';
 import DepositForm from '../components/DepositForm.jsx';
@@ -9,6 +9,8 @@ import Icon from '../components/ui/Icon.jsx';
 import Button from '../components/ui/Button.jsx';
 import EmptyState from '../components/ui/EmptyState.jsx';
 import { SkeletonCards, SkeletonRows } from '../components/ui/Skeleton.jsx';
+import { errorMessage } from '../utils/apiError';
+import { useDebouncedValue } from '../utils/useDebouncedValue';
 
 export default function CustomerDashboard() {
   const { user } = useAuth();
@@ -18,6 +20,9 @@ export default function CustomerDashboard() {
   const [pages, setPages] = useState(1);
   const [filters, setFilters] = useState({ search: '', type: '', status: '' });
   const [loading, setLoading] = useState(true);
+  const txRequestId = useRef(0);
+  const [closureError, setClosureError] = useState('');
+  const debouncedFilters = useDebouncedValue(filters, 300);
   const [openingAccount, setOpeningAccount] = useState(false);
   const [moneyTab, setMoneyTab] = useState('deposit');
 
@@ -27,15 +32,18 @@ export default function CustomerDashboard() {
   }, []);
 
   const loadTransactions = useCallback(async () => {
-    const params = { page, ...filters };
+    const params = { page, ...debouncedFilters };
     Object.keys(params).forEach((key) => !params[key] && delete params[key]);
+    const requestId = ++txRequestId.current;
     const res = await api.get('/transactions/mine', { params });
+    if (requestId !== txRequestId.current) return; // a newer filter change superseded this response
     setTransactions(res.data.items);
     setPages(res.data.pages);
-  }, [page, filters]);
+  }, [page, debouncedFilters]);
 
   useEffect(() => {
-    setLoading(true);
+    // `loading` starts true, so only the first load swaps in the skeleton; later filter/page changes
+    // refetch in place (replacing the page would unmount the search input mid-typing).
     Promise.all([loadAccounts(), loadTransactions()]).finally(() => setLoading(false));
   }, [loadAccounts, loadTransactions]);
 
@@ -46,6 +54,20 @@ export default function CustomerDashboard() {
       await loadAccounts();
     } finally {
       setOpeningAccount(false);
+    }
+  }
+
+  async function handleRequestClosure(account) {
+    const ok = window.confirm(
+      `Request closure of account ending ${account.accountNumber.slice(-4)}? A bank employee must approve it, and the account cannot be used meanwhile.`
+    );
+    if (!ok) return;
+    setClosureError('');
+    try {
+      await api.post(`/accounts/${account._id}/request-closure`);
+      await loadAccounts();
+    } catch (err) {
+      setClosureError(errorMessage(err, 'Could not request closure'));
     }
   }
 
@@ -82,6 +104,12 @@ export default function CustomerDashboard() {
         </div>
       </div>
 
+      {closureError && (
+        <p className="error-text" role="alert">
+          <Icon name="alertCircle" size={16} /> {closureError}
+        </p>
+      )}
+
       {accounts.length === 0 ? (
         <EmptyState
           icon="wallet"
@@ -101,7 +129,7 @@ export default function CustomerDashboard() {
       ) : (
         <div className="account-grid">
           {accounts.map((acc) => (
-            <AccountCard key={acc._id} account={acc} />
+            <AccountCard key={acc._id} account={acc} onRequestClosure={handleRequestClosure} />
           ))}
         </div>
       )}

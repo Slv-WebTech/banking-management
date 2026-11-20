@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import Button from '../components/ui/Button.jsx';
+import { errorMessage } from '../utils/apiError';
 
 export default function Register() {
   const { register } = useAuth();
@@ -20,7 +21,7 @@ export default function Register() {
       await register(form.name, form.email, form.password, form.phone);
       navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Registration failed');
+      setError(errorMessage(err, 'Registration failed'));
     } finally {
       setSubmitting(false);
     }
@@ -34,7 +35,7 @@ export default function Register() {
             <span className="brand-mark">
               <Icon name="landmark" size={18} />
             </span>
-            Banking Management
+            Verdant Bank
           </Link>
           <h1 className="auth-headline">Open an account in minutes.</h1>
           <p className="auth-sub">
@@ -70,7 +71,7 @@ export default function Register() {
             </div>
           </div>
         </div>
-        <p className="auth-aside-footer">© {new Date().getFullYear()} Banking Management System</p>
+        <p className="auth-aside-footer">© {new Date().getFullYear()} Verdant Bank</p>
       </aside>
 
       <main className="auth-main">
@@ -80,7 +81,7 @@ export default function Register() {
               <span className="brand-mark">
                 <Icon name="landmark" size={18} />
               </span>
-              Banking Management
+              Verdant Bank
             </Link>
           </div>
 
@@ -89,7 +90,7 @@ export default function Register() {
             <p className="form-lede">It only takes a minute to get started.</p>
 
             {error && (
-              <p className="error-text">
+              <p className="error-text" role="alert">
                 <Icon name="alertCircle" size={16} /> {error}
               </p>
             )}
@@ -118,6 +119,7 @@ export default function Register() {
                 <input
                   id="email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -148,8 +150,10 @@ export default function Register() {
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="new-password"
                   required
                   minLength={8}
+                  maxLength={72}
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}
                 />

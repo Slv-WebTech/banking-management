@@ -71,7 +71,7 @@ export default function Navbar() {
           <span className="brand-mark">
             <Icon name="landmark" size={18} />
           </span>
-          Banking Management
+          Verdant Bank
         </Link>
 
         {user && (

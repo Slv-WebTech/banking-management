@@ -10,7 +10,7 @@
   --gray-200: #e1e6ed;
   --gray-300: #c9d0db;
   --gray-400: #9aa5b5;
-  --gray-500: #707c8e;
+  --gray-500: #5f6b7d; /* darkened from #707c8e: 4.2:1 -> 5.4:1 on white (WCAG AA) */
   --gray-600: #4f5967;
   --gray-700: #37404d;
   --gray-800: #232a35;
@@ -1131,6 +1131,11 @@ table {
   transition: border-color var(--dur-fast) var(--ease-out), box-shadow var(--dur-fast) var(--ease-out);
 }
 
+/* Keep room for the search icon: the shorthand padding above would otherwise reset it. */
+.filters-bar .input-group input {
+  padding-left: 40px;
+}
+
 .filters-bar input:focus {
   outline: none;
   border-color: var(--brand-500);
@@ -1592,5 +1597,116 @@ td.amount-debit {
 @media (max-width: 420px) {
   .stat-grid {
     grid-template-columns: 1fr;
+  }
+}
+
+/* ==========================================================================
+   QA additions: skip link, list notes, closure link, small-screen ergonomics
+   ========================================================================== */
+
+.skip-link {
+  position: absolute;
+  left: var(--space-4);
+  top: -48px;
+  z-index: 1000;
+  padding: var(--space-3) var(--space-5);
+  background: var(--ink-800);
+  color: var(--text-on-dark);
+  border-radius: var(--radius-md);
+  font-weight: 600;
+  font-size: var(--text-sm);
+  text-decoration: none;
+}
+
+.skip-link:focus {
+  top: var(--space-4);
+}
+
+.app-main:focus {
+  outline: none;
+}
+
+.list-note {
+  margin: var(--space-4) 0 0;
+  font-size: var(--text-sm);
+  color: var(--text-secondary);
+}
+
+.account-card-link-btn {
+  align-self: flex-start;
+  margin-top: var(--space-4);
+  padding: 0;
+  border: none;
+  background: none;
+  color: var(--text-on-dark-muted);
+  font: inherit;
+  font-size: var(--text-xs);
+  text-decoration: underline;
+  cursor: pointer;
+}
+
+.account-card-link-btn:hover:not(:disabled) {
+  color: #fff;
+}
+
+.account-card-link-btn:disabled {
+  text-decoration: none;
+  cursor: default;
+  opacity: 0.75;
+}
+
+@media (max-width: 640px) {
+  /* Touch targets: at least 44px */
+  .account-card-icon-btn {
+    width: 44px;
+    height: 44px;
+  }
+
+  .pagination .btn,
+  .table-wrap .btn-sm {
+    min-height: 44px;
+  }
+
+  .tab {
+    min-height: 44px;
+  }
+
+  .menu-toggle,
+  .brand,
+  .filters-bar input,
+  .filters-bar select,
+  .input-compact,
+  .table-wrap select {
+    min-height: 44px;
+  }
+
+  .menu-toggle {
+    min-width: 44px;
+  }
+
+  .btn,
+  .field input,
+  .field select,
+  .field textarea,
+  .account-card-link-btn {
+    min-height: 44px;
+  }
+
+  .account-card-link-btn {
+    display: inline-flex;
+    align-items: center;
+  }
+
+  /* Keep row actions (Approve/Reject, role/status) reachable while the table scrolls sideways */
+  .table-sticky-actions th:last-child,
+  .table-sticky-actions td:last-child {
+    position: sticky;
+    right: 0;
+    background: var(--surface);
+    box-shadow: -6px 0 8px -6px rgba(16, 21, 27, 0.18);
+  }
+
+  .table-sticky-actions th:last-child {
+    background: var(--surface-sunken);
   }
 }

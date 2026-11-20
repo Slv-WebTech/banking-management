@@ -3,6 +3,7 @@ import { useNavigate, Link } from 'react-router-dom';
 import { useAuth } from '../context/AuthContext.jsx';
 import Icon from '../components/ui/Icon.jsx';
 import Button from '../components/ui/Button.jsx';
+import { errorMessage } from '../utils/apiError';
 
 export default function Login() {
   const { login } = useAuth();
@@ -22,7 +23,7 @@ export default function Login() {
       else if (user.role === 'employee') navigate('/employee');
       else navigate('/dashboard');
     } catch (err) {
-      setError(err.response?.data?.message || 'Login failed');
+      setError(errorMessage(err, 'Login failed'));
     } finally {
       setSubmitting(false);
     }
@@ -36,7 +37,7 @@ export default function Login() {
             <span className="brand-mark">
               <Icon name="landmark" size={18} />
             </span>
-            Banking Management
+            Verdant Bank
           </Link>
           <h1 className="auth-headline">Banking, simplified.</h1>
           <p className="auth-sub">
@@ -73,7 +74,7 @@ export default function Login() {
             </div>
           </div>
         </div>
-        <p className="auth-aside-footer">© {new Date().getFullYear()} Banking Management System</p>
+        <p className="auth-aside-footer">© {new Date().getFullYear()} Verdant Bank</p>
       </aside>
 
       <main className="auth-main">
@@ -83,7 +84,7 @@ export default function Login() {
               <span className="brand-mark">
                 <Icon name="landmark" size={18} />
               </span>
-              Banking Management
+              Verdant Bank
             </Link>
           </div>
 
@@ -92,7 +93,7 @@ export default function Login() {
             <p className="form-lede">Sign in to access your accounts.</p>
 
             {error && (
-              <p className="error-text">
+              <p className="error-text" role="alert">
                 <Icon name="alertCircle" size={16} /> {error}
               </p>
             )}
@@ -106,6 +107,7 @@ export default function Login() {
                 <input
                   id="email"
                   type="email"
+                  autoComplete="email"
                   required
                   value={form.email}
                   onChange={(e) => setForm({ ...form, email: e.target.value })}
@@ -122,6 +124,7 @@ export default function Login() {
                 <input
                   id="password"
                   type={showPassword ? 'text' : 'password'}
+                  autoComplete="current-password"
                   required
                   value={form.password}
                   onChange={(e) => setForm({ ...form, password: e.target.value })}

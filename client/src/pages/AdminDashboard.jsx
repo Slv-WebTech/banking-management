@@ -4,6 +4,9 @@ import Icon from '../components/ui/Icon.jsx';
 import Badge from '../components/ui/Badge.jsx';
 import Button from '../components/ui/Button.jsx';
 import { SkeletonStats, SkeletonRows } from '../components/ui/Skeleton.jsx';
+import { formatMoney } from '../utils/formatMoney';
+import { errorMessage } from '../utils/apiError';
+import { useDebouncedValue } from '../utils/useDebouncedValue';
 
 export default function AdminDashboard() {
   const [report, setReport] = useState(null);
@@ -12,17 +15,21 @@ export default function AdminDashboard() {
   const [roleFilter, setRoleFilter] = useState('');
   const [loading, setLoading] = useState(true);
   const [busyId, setBusyId] = useState(null);
+  const [totalUsers, setTotalUsers] = useState(0);
+  const [actionError, setActionError] = useState('');
+  const debouncedSearch = useDebouncedValue(search, 300);
 
   const loadUsers = useCallback(async () => {
     const params = {};
-    if (search) params.search = search;
+    if (debouncedSearch) params.search = debouncedSearch;
     if (roleFilter) params.role = roleFilter;
     const res = await api.get('/admin/users', { params });
     setUsers(res.data);
-  }, [search, roleFilter]);
+    setTotalUsers(Number(res.headers['x-total-count']) || res.data.length);
+  }, [debouncedSearch, roleFilter]);
 
   useEffect(() => {
-    setLoading(true);
+    // Only the first load shows the skeleton; refetching on search/filter must not unmount the inputs.
     Promise.all([api.get('/admin/report').then((res) => setReport(res.data)), loadUsers()]).finally(() =>
       setLoading(false)
     );
@@ -30,10 +37,13 @@ export default function AdminDashboard() {
 
   async function toggleStatus(user) {
     setBusyId(user._id);
+    setActionError('');
     try {
       const nextStatus = user.status === 'active' ? 'suspended' : 'active';
       await api.patch(`/admin/users/${user._id}/status`, { status: nextStatus });
       await loadUsers();
+    } catch (err) {
+      setActionError(errorMessage(err, 'Could not update the user'));
     } finally {
       setBusyId(null);
     }
@@ -41,9 +51,12 @@ export default function AdminDashboard() {
 
   async function changeRole(user, role) {
     setBusyId(user._id);
+    setActionError('');
     try {
       await api.patch(`/admin/users/${user._id}/role`, { role });
       await loadUsers();
+    } catch (err) {
+      setActionError(errorMessage(err, 'Could not update the user'));
     } finally {
       setBusyId(null);
     }
@@ -87,7 +100,7 @@ export default function AdminDashboard() {
             <span className="stat-icon">
               <Icon name="banknote" size={18} />
             </span>
-            <div className="value">₹{report.totalBalance.toLocaleString('en-IN')}</div>
+            <div className="value">₹{formatMoney(report.totalBalance)}</div>
             <div className="label">Total Balance</div>
           </div>
           <div className="stat-card">
@@ -100,6 +113,12 @@ export default function AdminDashboard() {
         </div>
       )}
 
+      {actionError && (
+        <p className="error-text" role="alert">
+          <Icon name="alertCircle" size={16} /> {actionError}
+        </p>
+      )}
+
       <div className="card">
         <div className="card-header">
           <h3>Manage Users</h3>
@@ -109,12 +128,13 @@ export default function AdminDashboard() {
             <Icon name="search" size={16} className="input-icon" />
             <input
               type="text"
+              aria-label="Search users"
               placeholder="Search by name or email..."
               value={search}
               onChange={(e) => setSearch(e.target.value)}
             />
           </div>
-          <select value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
+          <select aria-label="Filter by role" value={roleFilter} onChange={(e) => setRoleFilter(e.target.value)}>
             <option value="">All roles</option>
             <option value="customer">Customer</option>
             <option value="employee">Employee</option>
@@ -122,7 +142,7 @@ export default function AdminDashboard() {
           </select>
         </div>
         <div className="table-wrap">
-          <table>
+          <table className="table-sticky-actions">
             <thead>
               <tr>
                 <th>User</th>
@@ -141,7 +161,7 @@ export default function AdminDashboard() {
                     </div>
                   </td>
                   <td>
-                    <select value={u.role} disabled={busyId === u._id} onChange={(e) => changeRole(u, e.target.value)}>
+                    <select aria-label={`Role for ${u.name}`} value={u.role} disabled={busyId === u._id} onChange={(e) => changeRole(u, e.target.value)}>
                       <option value="customer">Customer</option>
                       <option value="employee">Employee</option>
                       <option value="admin">Admin</option>
@@ -172,6 +192,11 @@ export default function AdminDashboard() {
             </tbody>
           </table>
         </div>
+        {totalUsers > users.length && (
+          <p className="list-note">
+            Showing the first {users.length} of {totalUsers} users. Use the search to narrow the list.
+          </p>
+        )}
       </div>
     </div>
   );

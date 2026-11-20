@@ -1,14 +1,17 @@
+import { lazy, Suspense } from 'react';
 import { Routes, Route, Navigate, useLocation } from 'react-router-dom';
 import Navbar from './components/Navbar.jsx';
 import ProtectedRoute from './components/ProtectedRoute.jsx';
 import Login from './pages/Login.jsx';
 import Register from './pages/Register.jsx';
 import CustomerDashboard from './pages/CustomerDashboard.jsx';
-import CustomerLoans from './pages/CustomerLoans.jsx';
-import EmployeeDashboard from './pages/EmployeeDashboard.jsx';
-import AdminDashboard from './pages/AdminDashboard.jsx';
 import NotFound from './pages/NotFound.jsx';
 import { useAuth } from './context/AuthContext.jsx';
+
+// Role-specific screens are split out of the main bundle.
+const CustomerLoans = lazy(() => import('./pages/CustomerLoans.jsx'));
+const EmployeeDashboard = lazy(() => import('./pages/EmployeeDashboard.jsx'));
+const AdminDashboard = lazy(() => import('./pages/AdminDashboard.jsx'));
 
 function Home() {
   const { user } = useAuth();
@@ -28,8 +31,11 @@ function Shell({ children }) {
 
   return (
     <div className="app-shell">
+      <a className="skip-link" href="#main-content">
+        Skip to main content
+      </a>
       <Navbar />
-      <main className="app-main">
+      <main className="app-main" id="main-content" tabIndex={-1}>
         <div className="page-container">{children}</div>
       </main>
     </div>
@@ -39,6 +45,7 @@ function Shell({ children }) {
 export default function App() {
   return (
     <Shell>
+      <Suspense fallback={<div className="page-loading">Loading...</div>}>
       <Routes>
         <Route path="/" element={<Home />} />
         <Route path="/login" element={<Login />} />
@@ -77,6 +84,7 @@ export default function App() {
         />
         <Route path="*" element={<NotFound />} />
       </Routes>
+      </Suspense>
     </Shell>
   );
 }
