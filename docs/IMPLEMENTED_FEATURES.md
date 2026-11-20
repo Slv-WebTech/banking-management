@@ -13,7 +13,7 @@ Factual record of what exists in code today. Everything below was verified with 
 - **What**: Open account (auto-generated unique 10-digit number), list own accounts, fetch by id (owner or staff), staff-wide search, request closure, and (added 2026-08-22) staff approval/rejection of a pending closure.
 - **Where**: `server/controllers/accountController.js`, `server/routes/accountRoutes.js`, `client/src/pages/CustomerDashboard.jsx`, `client/src/components/AccountCard.jsx`, `client/src/pages/EmployeeDashboard.jsx` ("Pending Closures" queue, added 2026-08-22).
 - **Dependencies**: `User` (owner ref).
-- **Testing status**: **Verified live** for account creation, listing, and staff search/view (via both API and browser). `request-closure`/`approve-closure`/`reject-closure` are now covered by automated tests (`server/tests/accounts.test.js`) but have **not** been exercised live in a browser.
+- **Testing status**: **Verified live** for account creation, listing, and staff search/view (via both API and browser). `request-closure`/`approve-closure`/`reject-closure` are now covered by automated tests (`server/tests/accounts.test.js`) and were exercised live in a browser during the 2026-11-20 QA pass (customer "Request closure" button, staff approve/reject, error banners).
 - **Known limitations**: no "update profile" flow despite being in the original brief; no dedicated account-detail page in the UI.
 
 ## Account Funding (Deposit)
@@ -48,14 +48,14 @@ Factual record of what exists in code today. Everything below was verified with 
 ## Role-Based Dashboards
 - **What**: Three distinct dashboards gated by `ProtectedRoute`, matching `customer`/`employee`/`admin` roles. As of 2026-08-22, the employee dashboard also includes a loan-application review queue and a pending-account-closure queue.
 - **Where**: `client/src/pages/CustomerDashboard.jsx`, `EmployeeDashboard.jsx`, `AdminDashboard.jsx`, `CustomerLoans.jsx`, `client/src/components/ProtectedRoute.jsx`.
-- **Testing status**: **Verified live** (through 2026-08-17) — all three original dashboards rendered and were interacted with in a real browser under their correct role; zero JavaScript console errors observed across the full session. The 2026-08-22 redesign and the loan/closure-approval additions have **not** been re-verified live yet.
-- **Known limitations**: admin dashboard's user table has no pagination.
+- **Testing status**: **Verified live** (through 2026-08-17) — all three original dashboards rendered and were interacted with in a real browser under their correct role; zero JavaScript console errors observed across the full session. The 2026-08-22 redesign and the loan/closure-approval additions were re-verified live on 2026-11-20 (layouts at 375/768/1280 px, keyboard and contrast checks, console clean).
+- **Known limitations**: the admin user table and the employee account list show at most the first 100 rows per request (a notice shows the total; search narrows the list).
 
 ## Admin User Management
 - **What**: List/search/filter users, suspend/activate, change role, system-wide report (user/account/balance/transaction counts).
 - **Where**: `server/controllers/adminController.js`, `client/src/pages/AdminDashboard.jsx`.
 - **Testing status**: **Verified live**, both API and browser: suspend/reactivate toggled a real user's status and immediately affected their access; role-change dropdown persisted a real promotion; the report's counts/totals were cross-checked by hand against the actual seeded data and matched exactly.
-- **Known limitations**: no audit log of who changed what; no protection against an admin demoting/suspending themselves; no pagination on the user list.
+- **Known limitations**: no audit log of who changed what; admins cannot demote/suspend themselves (enforced server-side); the user list is capped at 100 rows per request with the total in `X-Total-Count`.
 
 ## Admin Bootstrap
 - **What**: `server/scripts/seedAdmin.js` (`npm run seed:admin -- <email>`) promotes an already-registered user to `admin` without touching the database by hand.
@@ -68,3 +68,14 @@ Factual record of what exists in code today. Everything below was verified with 
 - **Where**: `server/server.js`, `server/middleware/`, route-level validators.
 - **Testing status**: Role/ownership boundaries verified live (customer correctly blocked with 403 from staff-only endpoints and from viewing another customer's account; no-token requests correctly rejected with 401). **Not tested**: rate limiting thresholds, `mongo-sanitize` against an actual injection attempt, or any adversarial/security-specific testing — this remains a baseline, not an audit result.
 - **Known limitations**: no HTTPS in this codebase (must be terminated by the deployment host), no CSRF concern applicable (pure bearer-token API, no cookies), no 2FA, no dependency vulnerability fixes applied yet for the client's 4 npm audit findings.
+
+## QA-hardening addendum (2026-11-20)
+Behaviours added or changed by the senior-QA pass (details and evidence in [QA-REPORT.md](QA-REPORT.md)):
+- **Money precision**: every balance update rounds to cents inside the database (`adjustBalance`), so `balance: 0` closure checks and `$gte` debit checks are exact.
+- **Validation**: malformed ids / typed fields / dates return 400, never 500; passwords are 8–72 characters (bcrypt limit); `parseAmount` accepts only numbers and numeric strings.
+- **Rate limits**: transfer/deposit/loan-action limits are keyed per authenticated user, not per IP; login/register stay per IP (20 per 15 min).
+- **Loans**: a borrower may have at most 3 pending applications (`MAX_PENDING_LOANS`); due dates clamp to month end.
+- **Customer account closure**: "Request closure" button on zero-balance active account cards.
+- **Staff lists**: optional `?page`/`?limit`, `X-Total-Count` header, truncation notice in the UI; debounced search.
+- **Messages**: "Insufficient balance" vs "Source account is not active"; first field-level validation message shown instead of "Validation failed".
+- **Accessibility/mobile**: skip link, accessible names on all search/filter controls, `role="alert"` banners, 5.4:1 muted-text contrast, 44 px touch targets under 640 px, sticky action columns on small screens.

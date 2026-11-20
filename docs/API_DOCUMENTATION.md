@@ -6,6 +6,12 @@ All request/response bodies are JSON. Authenticated routes require `Authorizatio
 
 This document is derived directly from `server/routes/*.js` and `server/controllers/*.js` as of the initial scaffold. If it disagrees with the code, the code wins — update this file.
 
+**Cross-cutting behaviour (2026-11-20):**
+- Malformed ids, wrongly-typed fields and unparsable dates return **400** (never 500). Stack traces are returned only when `NODE_ENV=development`.
+- Passwords must be 8–72 characters. Amounts must be numbers or numeric strings with at most 2 decimals.
+- Rate limits: auth routes are per IP (20 / 15 min); transfer, deposit and loan actions (10 / min) are per authenticated user. A 429 body is `{ "message": "Too many … Please wait a minute and try again." }`.
+- Failure messages are specific: `Insufficient balance`, `Source account is not active`, `Payment account is not active`, and a borrower with 3 pending loans gets `400` on `POST /api/loans` (`MAX_PENDING_LOANS`).
+
 ## Auth (`/api/auth`) — rate limited 20 req / 15 min
 
 ### `POST /api/auth/register`
@@ -36,8 +42,8 @@ Any authenticated user. Opens a new account owned by the caller.
 
 ### `GET /api/accounts/all`
 Roles: `employee`, `admin`.
-- Query: `search?` (regex match on `accountNumber`)
-- 200 → array of accounts, each with `owner` populated (`name`, `email`).
+- Query: `search?` (escaped, case-insensitive match on `accountNumber`), `status?` (`Active` | `PendingClosure` | `Closed`; other values are ignored), `page?`, `limit?` (default 100, max 500).
+- 200 → array of accounts, each with `owner` populated (`name`, `email`). Response header `X-Total-Count` carries the total number of matches (exposed to browsers via CORS).
 
 ### `GET /api/accounts/:id`
 Owner of the account, or `employee`/`admin`.
@@ -89,8 +95,8 @@ Roles: `employee`, `admin`. Same query params as `/mine` (minus `accountId` scop
 ## Admin (`/api/admin`) — all routes require role `admin`
 
 ### `GET /api/admin/users`
-- Query: `role?`, `search?` (regex on `name` or `email`)
-- 200 → array of users. **Not paginated** — see [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md).
+- Query: `role?`, `search?` (escaped match on `name` or `email`), `page?`, `limit?` (default 100, max 500).
+- 200 → array of users; `X-Total-Count` header carries the total.
 
 ### `PATCH /api/admin/users/:id/status`
 - Body: `{ status: 'active' | 'suspended' }`

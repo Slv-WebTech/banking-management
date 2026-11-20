@@ -18,6 +18,10 @@ Nothing in this project has been deployed anywhere. This document records the *p
 - `JWT_SECRET` — **must** be replaced with a long random value in any real deployment; the example file contains a placeholder, not a usable secret
 - `JWT_EXPIRES_IN` — defaults to `7d`
 - `CLIENT_URL` — used for the `cors` origin allowlist; must match the deployed frontend's real URL in production
+- `MAX_DEPOSIT_AMOUNT` / `MAX_TRANSACTION_AMOUNT` — per-request caps (defaults 100000 / 10000000)
+- `MAX_PENDING_LOANS` — pending loan applications allowed per borrower (default 3)
+- `TRUST_PROXY` — set to `1` behind a reverse proxy so the per-IP auth limiter sees real client IPs
+- Set `NODE_ENV=production` in any real deployment: stack traces are only returned when it is `development`, and 5xx messages are masked in production
 
 ### `client/.env` (see `client/.env.example`)
 - `VITE_API_URL` — must point at the deployed backend's `/api` base URL, not `localhost`, in production.
@@ -31,7 +35,7 @@ Nothing in this project has been deployed anywhere. This document records the *p
 6. Ideally: the "Next" steps in [PROJECT_PLAN.md](PROJECT_PLAN.md) (real local testing, admin bootstrap) completed first, so what gets deployed has actually been exercised once.
 
 ## CI/CD
-None exists. No GitHub Actions workflow, no auto-deploy hooks. Not worth setting up before there's a test suite for it to run (see [TESTING.md](TESTING.md)) and before the project is even in a git repository (see [TECHNICAL_DEBT.md](TECHNICAL_DEBT.md) item 4).
+A CI workflow exists as of 2026-08-22 (`.github/workflows/ci.yml`, GitHub Actions) — it runs the server test suite, the client test suite, and the client production build on every push/PR to `main`. It has **not yet executed against a real push**, so its actual pass/fail status is unverified — treat it as untested infrastructure until it runs once for real. No auto-deploy hooks exist or are planned until an actual hosting target is chosen (see "Before This Can Be Deployed" above) — CI currently only verifies the code, it does not ship it anywhere.
 
 ## Rollback Plan
 N/A — nothing deployed yet. Define this when the first deployment happens.

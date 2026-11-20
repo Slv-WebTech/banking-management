@@ -30,16 +30,21 @@
 - **Loan management module** (2026-08-22): apply → staff approve (sets rate, disburses, generates schedule) / reject → customer repays EMIs → auto-closes when fully paid. New `Loan` model, `loanSchedule.js` amortization math, full controller/routes, `/loans` customer page, staff review queue in `EmployeeDashboard.jsx`.
   - Acceptance criteria: EMI/amortization math independently unit-tested (13 tests, including hand-derived exact values) before anything else depended on it, given [FUTURE_FEATURES.md](FUTURE_FEATURES.md) flagged this as needing careful testing; full apply/approve/reject/repay flow covered by 14 integration tests. **Met.**
 
+- **Senior QA pass + hardening** (2026-11-20): full live walkthrough of all three roles, a black-box API security/integrity battery, performance run at 60k transactions, and fixes for every High/Medium finding that did not need a product decision — see [QA-REPORT.md](QA-REPORT.md). Includes customer-initiated account closure in the UI, per-user rate limits, pagination of staff lists, new indexes, debounced search, route code-splitting, accessibility and mobile fixes.
+  - Acceptance criteria: 108 server + 28 client tests green, production build green, each fix re-verified live. **Met.**
+- **Verdant Bank identity & repo polish** (2026-11-20): logo, banner, favicon, social preview, rewritten README, Open Graph metadata, PR/issue templates, branch ruleset.
+
 ## In Progress
 Nothing. Clean checkpoint.
 
 ## Next
 *(Recommended order.)*
 
-1. **Verify the CI pipeline actually runs green** on the next push — it's never executed for real yet.
-2. **Re-verify the redesigned dashboards live** in a browser against a real MongoDB instance — only Login/Register/404 were spot-checked live during the redesign itself (see [TESTING.md](TESTING.md)).
-3. **Fill the automated-suite gaps** — `TransferForm.jsx`, the page components (including the new `CustomerLoans.jsx`), `AccountCard.jsx`, `Navbar.jsx` all still have zero direct test coverage, plus coverage reporting. See [TESTING.md](TESTING.md)'s gaps list.
-4. **Deposit cap or staff-initiated deposit** — optional realism upgrade now that self-service deposit exists; see [DECISIONS.md](DECISIONS.md) and [FUTURE_FEATURES.md](FUTURE_FEATURES.md). Not urgent — the current version is a deliberate, documented trade-off, not a bug.
+1. **Decide the funding model** — self-service deposit is the only way to fund an account and it mints money ([QA-REPORT.md](QA-REPORT.md) B5). Options: remove customer deposits, staff-approved cash deposits, or an external funding source. Product decision.
+2. **Define loan approval policy** — maker-checker / dual approval above a threshold (QA B7). Product decision.
+3. **Playwright smoke tests** for the three roles, and fill the page-component unit-test gaps (see [TESTING.md](TESTING.md)).
+4. **Integer minor-unit money** and multi-document transactions (needs a replica set) to remove the compensating-write design.
+5. **Cursor pagination / text index** once history approaches ~1M rows (QA P3).
 
 ## Later
 5. Statement generation with PDF export.
