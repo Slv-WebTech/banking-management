@@ -11,4 +11,8 @@ const accountSchema = new mongoose.Schema(
   { timestamps: true }
 );
 
+// Every customer request resolves "my accounts" by owner; staff closure queue filters by status.
+accountSchema.index({ owner: 1 });
+accountSchema.index({ status: 1 });
+
 module.exports = mongoose.model('Account', accountSchema);

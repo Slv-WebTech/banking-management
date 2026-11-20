@@ -24,13 +24,15 @@ const loanActionLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === 'test',
-  message: { message: 'Too many loan actions, please slow down' },
+  keyGenerator: (req) => String(req.user._id),
+  message: { message: 'Too many loan actions. Please wait a minute and try again.' },
 });
 
 router.post(
   '/',
   [
-    body('disbursalAccount').notEmpty().withMessage('disbursalAccount is required'),
+    body('disbursalAccount').isMongoId().withMessage('disbursalAccount is required'),
+    body('purpose').optional().isString().isLength({ max: 200 }),
     body('principal').isFloat({ gt: 0 }).withMessage('principal must be a positive number'),
     body('termMonths').isInt({ min: 1, max: 360 }).withMessage('termMonths must be between 1 and 360'),
   ],
@@ -56,7 +58,10 @@ router.patch('/:id/reject', authorize('employee', 'admin'), asyncHandler(rejectL
 router.post(
   '/:id/pay',
   loanActionLimiter,
-  [body('account').notEmpty().withMessage('account is required')],
+  [
+    body('account').isMongoId().withMessage('account is required'),
+    body('clientRef').optional().isString().isLength({ max: 100 }),
+  ],
   validate,
   asyncHandler(payInstallment)
 );

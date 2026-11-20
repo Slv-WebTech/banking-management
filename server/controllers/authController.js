@@ -1,5 +1,8 @@
 const User = require('../models/User');
+const bcrypt = require('bcryptjs');
 const generateToken = require('../utils/generateToken');
+
+const DUMMY_HASH = bcrypt.hashSync('timing-equalisation-placeholder', 12);
 
 async function register(req, res) {
   const { name, email, password, phone } = req.body;
@@ -22,7 +25,9 @@ async function login(req, res) {
   const { email, password } = req.body;
 
   const user = await User.findOne({ email: email.toLowerCase() }).select('+password');
-  if (!user || !(await user.comparePassword(password))) {
+  // Always spend one bcrypt comparison so response time does not reveal whether the email exists.
+  const passwordOk = user ? await user.comparePassword(password) : await bcrypt.compare(password, DUMMY_HASH);
+  if (!user || !passwordOk) {
     return res.status(401).json({ message: 'Invalid email or password' });
   }
   if (user.status !== 'active') {

@@ -30,8 +30,13 @@ function buildAmortizationSchedule(principal, annualRatePercent, termMonths, sta
 
     balance = round2(balance - principalPortion);
 
+    // Clamp to the last day of the target month (Jan 31 + 1 month = Feb 28, not Mar 3).
     const dueDate = new Date(base);
-    dueDate.setMonth(dueDate.getMonth() + i);
+    const targetMonth = dueDate.getMonth() + i;
+    dueDate.setDate(1);
+    dueDate.setMonth(targetMonth);
+    const lastDay = new Date(dueDate.getFullYear(), dueDate.getMonth() + 1, 0).getDate();
+    dueDate.setDate(Math.min(base.getDate(), lastDay));
 
     schedule.push({
       installmentNumber: i,

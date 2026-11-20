@@ -21,16 +21,20 @@ const transferLimiter = rateLimit({
   standardHeaders: true,
   legacyHeaders: false,
   skip: () => process.env.NODE_ENV === 'test',
-  message: { message: 'Too many transfer attempts, please slow down' },
+  // Per authenticated user (protect() runs first), so users behind one proxy/NAT do not share a bucket.
+  keyGenerator: (req) => String(req.user._id),
+  message: { message: 'Too many transfer attempts. Please wait a minute and try again.' },
 });
 
 router.post(
   '/transfer',
   transferLimiter,
   [
-    body('fromAccount').notEmpty().withMessage('fromAccount is required'),
-    body('toAccountNumber').notEmpty().withMessage('toAccountNumber is required'),
+    body('fromAccount').isMongoId().withMessage('fromAccount is required'),
+    body('toAccountNumber').isString().notEmpty().withMessage('toAccountNumber is required'),
+    body('description').optional().isString().isLength({ max: 200 }),
     body('amount').isFloat({ gt: 0 }).withMessage('amount must be a positive number'),
+    body('clientRef').optional().isString().isLength({ max: 100 }),
   ],
   validate,
   asyncHandler(transferFunds)
@@ -40,8 +44,10 @@ router.post(
   '/deposit',
   transferLimiter,
   [
-    body('account').notEmpty().withMessage('account is required'),
+    body('account').isMongoId().withMessage('account is required'),
+    body('description').optional().isString().isLength({ max: 200 }),
     body('amount').isFloat({ gt: 0 }).withMessage('amount must be a positive number'),
+    body('clientRef').optional().isString().isLength({ max: 100 }),
   ],
   validate,
   asyncHandler(depositFunds)

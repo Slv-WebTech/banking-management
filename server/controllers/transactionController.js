@@ -1,13 +1,17 @@
 const mongoose = require('mongoose');
 const Account = require('../models/Account');
 const Transaction = require('../models/Transaction');
+const escapeRegex = require('../utils/escapeRegex');
+const { adjustBalance, parseAmount, MAX_DEPOSIT_AMOUNT } = require('../utils/money');
 
 async function transferFunds(req, res) {
   const { fromAccount, toAccountNumber, amount, description, clientRef } = req.body;
-  const numericAmount = Number(amount);
+  const numericAmount = parseAmount(amount);
 
-  if (!fromAccount || !toAccountNumber || !numericAmount || numericAmount <= 0) {
-    return res.status(400).json({ message: 'fromAccount, toAccountNumber and a positive amount are required' });
+  if (!fromAccount || !toAccountNumber || !numericAmount) {
+    return res.status(400).json({
+      message: 'fromAccount, toAccountNumber and a valid positive amount (max 2 decimals) are required',
+    });
   }
 
   const source = await Account.findById(fromAccount);
@@ -32,27 +36,32 @@ async function transferFunds(req, res) {
 
   const debitedSource = await Account.findOneAndUpdate(
     { _id: source._id, status: 'Active', balance: { $gte: numericAmount } },
-    { $inc: { balance: -numericAmount } },
+    adjustBalance(-numericAmount),
     { new: true }
   );
   if (!debitedSource) {
-    return res.status(400).json({ message: 'Insufficient balance or inactive account' });
+    return res
+      .status(400)
+      .json({ message: source.status !== 'Active' ? 'Source account is not active' : 'Insufficient balance' });
   }
 
   const creditedDestination = await Account.findOneAndUpdate(
     { _id: destination._id, status: 'Active' },
-    { $inc: { balance: numericAmount } },
+    adjustBalance(numericAmount),
     { new: true }
   );
   if (!creditedDestination) {
     // Compensate: refund the source account since the credit leg failed.
-    await Account.findByIdAndUpdate(source._id, { $inc: { balance: numericAmount } });
+    await Account.findByIdAndUpdate(source._id, adjustBalance(numericAmount));
     return res.status(409).json({ message: 'Recipient account became unavailable, transfer reverted' });
   }
 
   const reference = new mongoose.Types.ObjectId().toString();
 
-  const [debitTx] = await Transaction.create([
+  let debitTx;
+  try {
+    [debitTx] = await Transaction.create(
+      [
     {
       account: source._id,
       counterpartyAccount: destination._id,
@@ -70,20 +79,34 @@ async function transferFunds(req, res) {
       amount: numericAmount,
       balanceAfter: creditedDestination.balance,
       reference,
-      clientRef,
       description: description || `Transfer from ${source.accountNumber}`,
     },
-  ]);
+      ],
+      { ordered: true }
+    );
+  } catch (err) {
+    // The ledger write failed after balances moved: put the money back so
+    // balances never drift from the ledger.
+    await Account.findByIdAndUpdate(source._id, adjustBalance(numericAmount));
+    await Account.findByIdAndUpdate(destination._id, adjustBalance(-numericAmount));
+    if (err.code === 11000 && clientRef) {
+      const existing = await Transaction.findOne({ clientRef, account: source._id });
+      if (existing) return res.status(200).json({ message: 'Transfer already processed', transaction: existing });
+    }
+    throw err;
+  }
 
   res.status(201).json({ message: 'Transfer successful', transaction: debitTx });
 }
 
 async function depositFunds(req, res) {
   const { account: accountId, amount, description, clientRef } = req.body;
-  const numericAmount = Number(amount);
+  const numericAmount = parseAmount(amount, MAX_DEPOSIT_AMOUNT);
 
-  if (!accountId || !numericAmount || numericAmount <= 0) {
-    return res.status(400).json({ message: 'account and a positive amount are required' });
+  if (!accountId || !numericAmount) {
+    return res.status(400).json({
+      message: `account and a valid positive amount (max 2 decimals, at most ${MAX_DEPOSIT_AMOUNT}) are required`,
+    });
   }
 
   const account = await Account.findById(accountId);
@@ -100,7 +123,7 @@ async function depositFunds(req, res) {
 
   const creditedAccount = await Account.findOneAndUpdate(
     { _id: account._id, status: 'Active' },
-    { $inc: { balance: numericAmount } },
+    adjustBalance(numericAmount),
     { new: true }
   );
   if (!creditedAccount) {
@@ -109,15 +132,25 @@ async function depositFunds(req, res) {
 
   const reference = new mongoose.Types.ObjectId().toString();
 
-  const transaction = await Transaction.create({
-    account: account._id,
-    type: 'deposit',
-    amount: numericAmount,
-    balanceAfter: creditedAccount.balance,
-    reference,
-    clientRef,
-    description: description || 'Deposit',
-  });
+  let transaction;
+  try {
+    transaction = await Transaction.create({
+      account: account._id,
+      type: 'deposit',
+      amount: numericAmount,
+      balanceAfter: creditedAccount.balance,
+      reference,
+      clientRef,
+      description: description || 'Deposit',
+    });
+  } catch (err) {
+    await Account.findByIdAndUpdate(account._id, adjustBalance(-numericAmount));
+    if (err.code === 11000 && clientRef) {
+      const existing = await Transaction.findOne({ clientRef, account: account._id });
+      if (existing) return res.status(200).json({ message: 'Deposit already processed', transaction: existing });
+    }
+    throw err;
+  }
 
   res.status(201).json({ message: 'Deposit successful', transaction });
 }
@@ -137,11 +170,11 @@ async function buildHistoryFilter(query, accountIds) {
     if (to) filter.createdAt.$lte = new Date(to);
   }
   if (search) {
-    const matchingAccounts = await Account.find({ accountNumber: { $regex: search, $options: 'i' } }).select('_id');
+    const matchingAccounts = await Account.find({ accountNumber: { $regex: escapeRegex(search), $options: 'i' } }).select('_id');
     const matchingAccountIds = matchingAccounts.map((a) => a._id);
     filter.$or = [
-      { reference: { $regex: search, $options: 'i' } },
-      { description: { $regex: search, $options: 'i' } },
+      { reference: { $regex: escapeRegex(search), $options: 'i' } },
+      { description: { $regex: escapeRegex(search), $options: 'i' } },
       ...(matchingAccountIds.length
         ? [{ account: { $in: matchingAccountIds } }, { counterpartyAccount: { $in: matchingAccountIds } }]
         : []),
